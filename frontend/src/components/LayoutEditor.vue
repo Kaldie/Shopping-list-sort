@@ -2,7 +2,10 @@
 import { ref, watch } from 'vue'
 import { api } from '../api.js'
 
-const props = defineProps({ store: { type: Object, required: true } })
+const props = defineProps({
+  store: { type: Object, required: true },
+  userId: { type: String, required: true },
+})
 const emit = defineEmits(['updated'])
 
 const sections = ref([])
@@ -15,7 +18,7 @@ async function refresh() {
   sections.value = [...(props.store.sections || [])]
   layout.value = await api.layout(props.store.id)
 }
-watch(() => props.store.id, refresh, { immediate: true })
+watch(() => [props.store.id, props.store.forked], refresh, { immediate: true })
 
 async function save() {
   const s = await api.updateStore(props.store.id, { sections: sections.value })
@@ -64,6 +67,12 @@ async function importPhotos(e) {
   save()
 }
 
+async function unfork() {
+  if (!confirm('Drop your own route and go back to the shared layout?')) return
+  emit('updated', await api.unforkStore(props.store.id))
+  await refresh()
+}
+
 function adoptLearned() {
   sections.value = layout.value.sections.map((s) => s.name)
   save()
@@ -71,6 +80,19 @@ function adoptLearned() {
 </script>
 
 <template>
+  <div class="banner" :class="{ own: store.forked }">
+    <template v-if="store.forked">
+      <span class="grow">🧭 <strong>Your own route.</strong> Learns only from your trips.</span>
+      <button class="ghost" @click="unfork">Use shared</button>
+    </template>
+    <span v-else-if="store.createdBy === userId">
+      🌍 <strong>Shared layout</strong> — you created it, so your section order is public. Everyone's trips vote on the item order.
+    </span>
+    <span v-else>
+      🌍 <strong>Shared layout</strong> — voted by everyone's trips. Changing the section order makes it your own route.
+    </span>
+  </div>
+
   <section>
     <h2>Known section order</h2>
     <p class="muted">

@@ -10,10 +10,10 @@ import (
 func newStore(t *testing.T, sections []string, trips ...[]string) store.Store {
 	t.Helper()
 	r, _ := store.Open("")
-	s, _ := r.Create("test", sections)
+	s, _ := r.Create("test", "u1", sections)
 	for _, tr := range trips {
 		var err error
-		if s, err = r.RecordTrip(s.ID, tr); err != nil {
+		if s, err = r.RecordTrip(s.ID, "u1", tr); err != nil {
 			t.Fatal(err)
 		}
 	}

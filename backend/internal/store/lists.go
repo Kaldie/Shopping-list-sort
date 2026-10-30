@@ -15,6 +15,7 @@ type Item struct {
 // statistics are computed from.
 type List struct {
 	ID          string     `json:"id"`
+	OwnerID     string     `json:"ownerId"`
 	Name        string     `json:"name"`
 	Items       []Item     `json:"items"`
 	TemplateID  string     `json:"templateId,omitempty"`
@@ -24,9 +25,10 @@ type List struct {
 
 // Template is a reusable base list ("weekly groceries").
 type Template struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Items []Item `json:"items"`
+	ID      string `json:"id"`
+	OwnerID string `json:"ownerId"`
+	Name    string `json:"name"`
+	Items   []Item `json:"items"`
 }
 
 // CleanItems trims names, defaults qty to 1 and merges duplicates.
@@ -70,46 +72,48 @@ func cloneTemplate(t *Template) Template {
 
 // --- Lists ---
 
-func (r *Repository) Lists() []List {
+func (r *Repository) Lists(owner string) []List {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := make([]List, 0, len(r.d.Lists))
 	for _, l := range r.d.Lists {
-		out = append(out, cloneList(l))
+		if l.OwnerID == owner {
+			out = append(out, cloneList(l))
+		}
 	}
 	return out
 }
 
-func (r *Repository) GetList(id string) (List, error) {
+func (r *Repository) GetList(id, owner string) (List, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	l, ok := r.d.Lists[id]
-	if !ok {
+	if !ok || l.OwnerID != owner {
 		return List{}, ErrNotFound
 	}
 	return cloneList(l), nil
 }
 
-func (r *Repository) CreateList(name string, items []Item, templateID string) (List, error) {
+func (r *Repository) CreateList(owner, name string, items []Item, templateID string) (List, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.createListLocked(name, items, templateID)
+	return r.createListLocked(owner, name, items, templateID)
 }
 
-func (r *Repository) createListLocked(name string, items []Item, templateID string) (List, error) {
+func (r *Repository) createListLocked(owner, name string, items []Item, templateID string) (List, error) {
 	if name == "" {
 		name = "List " + time.Now().Format("2 Jan")
 	}
-	l := &List{ID: r.newID("l"), Name: name, Items: CleanItems(items), TemplateID: templateID, CreatedAt: time.Now().UTC()}
+	l := &List{ID: r.newID("l"), OwnerID: owner, Name: name, Items: CleanItems(items), TemplateID: templateID, CreatedAt: time.Now().UTC()}
 	r.d.Lists[l.ID] = l
 	return cloneList(l), r.save()
 }
 
-func (r *Repository) UpdateList(id, name string, items []Item) (List, error) {
+func (r *Repository) UpdateList(id, owner, name string, items []Item) (List, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	l, ok := r.d.Lists[id]
-	if !ok {
+	if !ok || l.OwnerID != owner {
 		return List{}, ErrNotFound
 	}
 	if name != "" {
@@ -121,10 +125,10 @@ func (r *Repository) UpdateList(id, name string, items []Item) (List, error) {
 	return cloneList(l), r.save()
 }
 
-func (r *Repository) DeleteList(id string) error {
+func (r *Repository) DeleteList(id, owner string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, ok := r.d.Lists[id]; !ok {
+	if l, ok := r.d.Lists[id]; !ok || l.OwnerID != owner {
 		return ErrNotFound
 	}
 	delete(r.d.Lists, id)
@@ -133,11 +137,11 @@ func (r *Repository) DeleteList(id string) error {
 
 // CompleteList marks a list as bought. If bought is non-nil it replaces the
 // items with what was actually bought, so statistics reflect reality.
-func (r *Repository) CompleteList(id string, bought []Item) (List, error) {
+func (r *Repository) CompleteList(id, owner string, bought []Item) (List, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	l, ok := r.d.Lists[id]
-	if !ok {
+	if !ok || l.OwnerID != owner {
 		return List{}, ErrNotFound
 	}
 	if bought != nil {
@@ -150,39 +154,41 @@ func (r *Repository) CompleteList(id string, bought []Item) (List, error) {
 
 // --- Templates ---
 
-func (r *Repository) Templates() []Template {
+func (r *Repository) Templates(owner string) []Template {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := make([]Template, 0, len(r.d.Templates))
 	for _, t := range r.d.Templates {
-		out = append(out, cloneTemplate(t))
+		if t.OwnerID == owner {
+			out = append(out, cloneTemplate(t))
+		}
 	}
 	return out
 }
 
-func (r *Repository) GetTemplate(id string) (Template, error) {
+func (r *Repository) GetTemplate(id, owner string) (Template, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	t, ok := r.d.Templates[id]
-	if !ok {
+	if !ok || t.OwnerID != owner {
 		return Template{}, ErrNotFound
 	}
 	return cloneTemplate(t), nil
 }
 
-func (r *Repository) CreateTemplate(name string, items []Item) (Template, error) {
+func (r *Repository) CreateTemplate(owner, name string, items []Item) (Template, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	t := &Template{ID: r.newID("t"), Name: name, Items: CleanItems(items)}
+	t := &Template{ID: r.newID("t"), OwnerID: owner, Name: name, Items: CleanItems(items)}
 	r.d.Templates[t.ID] = t
 	return cloneTemplate(t), r.save()
 }
 
-func (r *Repository) UpdateTemplate(id, name string, items []Item) (Template, error) {
+func (r *Repository) UpdateTemplate(id, owner, name string, items []Item) (Template, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	t, ok := r.d.Templates[id]
-	if !ok {
+	if !ok || t.OwnerID != owner {
 		return Template{}, ErrNotFound
 	}
 	if name != "" {
@@ -194,10 +200,10 @@ func (r *Repository) UpdateTemplate(id, name string, items []Item) (Template, er
 	return cloneTemplate(t), r.save()
 }
 
-func (r *Repository) DeleteTemplate(id string) error {
+func (r *Repository) DeleteTemplate(id, owner string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, ok := r.d.Templates[id]; !ok {
+	if t, ok := r.d.Templates[id]; !ok || t.OwnerID != owner {
 		return ErrNotFound
 	}
 	delete(r.d.Templates, id)
@@ -205,15 +211,15 @@ func (r *Repository) DeleteTemplate(id string) error {
 }
 
 // ListFromTemplate starts a new list as a copy of the template.
-func (r *Repository) ListFromTemplate(templateID, name string) (List, error) {
+func (r *Repository) ListFromTemplate(templateID, owner, name string) (List, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	t, ok := r.d.Templates[templateID]
-	if !ok {
+	if !ok || t.OwnerID != owner {
 		return List{}, ErrNotFound
 	}
 	if name == "" {
 		name = t.Name + " · " + time.Now().Format("2 Jan")
 	}
-	return r.createListLocked(name, t.Items, t.ID)
+	return r.createListLocked(owner, name, t.Items, t.ID)
 }

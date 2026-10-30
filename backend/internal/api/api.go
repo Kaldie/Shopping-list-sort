@@ -10,28 +10,52 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/kaldie/shopping-list-sort/backend/internal/auth"
 	"github.com/kaldie/shopping-list-sort/backend/internal/layout"
 	"github.com/kaldie/shopping-list-sort/backend/internal/receipt"
 	"github.com/kaldie/shopping-list-sort/backend/internal/store"
 )
 
-type Server struct{ repo *store.Repository }
+type Config struct {
+	// GoogleClientID enables Google Sign-In. Empty enables dev login instead.
+	GoogleClientID string
+	// SecureCookies sets the Secure flag (serve over HTTPS in production).
+	SecureCookies bool
+}
 
-func New(repo *store.Repository) http.Handler {
-	s := &Server{repo: repo}
+type Server struct {
+	repo     *store.Repository
+	cfg      Config
+	verifier *auth.Verifier
+}
+
+func New(repo *store.Repository, cfg Config) http.Handler {
+	s := &Server{repo: repo, cfg: cfg}
+	if cfg.GoogleClientID != "" {
+		s.verifier = auth.NewVerifier(cfg.GoogleClientID)
+	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/stores", s.listStores)
-	mux.HandleFunc("POST /api/stores", s.createStore)
-	mux.HandleFunc("GET /api/stores/{id}", s.getStore)
-	mux.HandleFunc("PUT /api/stores/{id}", s.updateStore)
-	mux.HandleFunc("DELETE /api/stores/{id}", s.deleteStore)
-	mux.HandleFunc("GET /api/stores/{id}/layout", s.getLayout)
-	mux.HandleFunc("POST /api/stores/{id}/sort", s.sortList)
-	mux.HandleFunc("POST /api/stores/{id}/trips", s.recordTrip)
-	mux.HandleFunc("POST /api/ocr", s.ocr)
-	mux.HandleFunc("POST /api/receipt/parse", s.parseReceipt)
+	mux.HandleFunc("GET /api/auth/config", s.authConfig)
+	mux.HandleFunc("POST /api/auth/google", s.loginGoogle)
+	mux.HandleFunc("POST /api/auth/dev", s.loginDev)
+	mux.HandleFunc("POST /api/auth/logout", s.logout)
+	mux.HandleFunc("GET /api/me", s.authed(s.me))
+
+	mux.HandleFunc("GET /api/stores", s.authed(s.listStores))
+	mux.HandleFunc("POST /api/stores", s.authed(s.createStore))
+	mux.HandleFunc("GET /api/stores/{id}", s.authed(s.getStore))
+	mux.HandleFunc("PUT /api/stores/{id}", s.authed(s.updateStore))
+	mux.HandleFunc("DELETE /api/stores/{id}", s.authed(s.deleteStore))
+	mux.HandleFunc("POST /api/stores/{id}/fork", s.authed(s.forkStore))
+	mux.HandleFunc("DELETE /api/stores/{id}/fork", s.authed(s.unforkStore))
+	mux.HandleFunc("GET /api/stores/{id}/layout", s.authed(s.getLayout))
+	mux.HandleFunc("POST /api/stores/{id}/sort", s.authed(s.sortList))
+	mux.HandleFunc("POST /api/stores/{id}/trips", s.authed(s.recordTrip))
+	mux.HandleFunc("POST /api/stores/{id}/receipt", s.authed(s.applyReceipt))
+	mux.HandleFunc("POST /api/ocr", s.authed(s.ocr))
+	mux.HandleFunc("POST /api/receipt/parse", s.authed(s.parseReceipt))
 	s.registerLists(mux)
-	return cors(mux)
+	return mux
 }
 
 type storeReq struct {
@@ -44,11 +68,11 @@ type itemsReq struct {
 	Items []string `json:"items"`
 }
 
-func (s *Server) listStores(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, s.repo.List())
+func (s *Server) listStores(w http.ResponseWriter, r *http.Request, u store.User) {
+	writeJSON(w, http.StatusOK, s.repo.List(u.ID))
 }
 
-func (s *Server) createStore(w http.ResponseWriter, r *http.Request) {
+func (s *Server) createStore(w http.ResponseWriter, r *http.Request, u store.User) {
 	var req storeReq
 	if !readJSON(w, r, &req) {
 		return
@@ -57,16 +81,16 @@ func (s *Server) createStore(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "name is required")
 		return
 	}
-	st, err := s.repo.Create(req.Name, cleanLines(req.Sections))
+	st, err := s.repo.Create(req.Name, u.ID, cleanLines(req.Sections))
 	respond(w, http.StatusCreated, st, err)
 }
 
-func (s *Server) getStore(w http.ResponseWriter, r *http.Request) {
-	st, err := s.repo.Get(r.PathValue("id"))
+func (s *Server) getStore(w http.ResponseWriter, r *http.Request, u store.User) {
+	st, err := s.repo.Get(r.PathValue("id"), u.ID)
 	respond(w, http.StatusOK, st, err)
 }
 
-func (s *Server) updateStore(w http.ResponseWriter, r *http.Request) {
+func (s *Server) updateStore(w http.ResponseWriter, r *http.Request, u store.User) {
 	var req storeReq
 	if !readJSON(w, r, &req) {
 		return
@@ -75,20 +99,30 @@ func (s *Server) updateStore(w http.ResponseWriter, r *http.Request) {
 	if req.Sections != nil {
 		secs = cleanLines(req.Sections)
 	}
-	st, err := s.repo.Update(r.PathValue("id"), req.Name, secs, req.ItemSection)
+	st, err := s.repo.Update(r.PathValue("id"), u.ID, req.Name, secs, req.ItemSection)
 	respond(w, http.StatusOK, st, err)
 }
 
-func (s *Server) deleteStore(w http.ResponseWriter, r *http.Request) {
-	if err := s.repo.Delete(r.PathValue("id")); err != nil {
+func (s *Server) deleteStore(w http.ResponseWriter, r *http.Request, u store.User) {
+	if err := s.repo.Delete(r.PathValue("id"), u.ID); err != nil {
 		respond(w, 0, nil, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) getLayout(w http.ResponseWriter, r *http.Request) {
-	st, err := s.repo.Get(r.PathValue("id"))
+func (s *Server) forkStore(w http.ResponseWriter, r *http.Request, u store.User) {
+	st, err := s.repo.Fork(r.PathValue("id"), u.ID)
+	respond(w, http.StatusOK, st, err)
+}
+
+func (s *Server) unforkStore(w http.ResponseWriter, r *http.Request, u store.User) {
+	st, err := s.repo.Unfork(r.PathValue("id"), u.ID)
+	respond(w, http.StatusOK, st, err)
+}
+
+func (s *Server) getLayout(w http.ResponseWriter, r *http.Request, u store.User) {
+	st, err := s.repo.Get(r.PathValue("id"), u.ID)
 	if err != nil {
 		respond(w, 0, nil, err)
 		return
@@ -96,12 +130,12 @@ func (s *Server) getLayout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, layout.Generate(st))
 }
 
-func (s *Server) sortList(w http.ResponseWriter, r *http.Request) {
+func (s *Server) sortList(w http.ResponseWriter, r *http.Request, u store.User) {
 	var req itemsReq
 	if !readJSON(w, r, &req) {
 		return
 	}
-	st, err := s.repo.Get(r.PathValue("id"))
+	st, err := s.repo.Get(r.PathValue("id"), u.ID)
 	if err != nil {
 		respond(w, 0, nil, err)
 		return
@@ -109,65 +143,143 @@ func (s *Server) sortList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"groups": layout.Sort(st, req.Items)})
 }
 
-func (s *Server) recordTrip(w http.ResponseWriter, r *http.Request) {
+func (s *Server) recordTrip(w http.ResponseWriter, r *http.Request, u store.User) {
 	var req itemsReq
 	if !readJSON(w, r, &req) {
 		return
 	}
-	st, err := s.repo.RecordTrip(r.PathValue("id"), cleanLines(req.Items))
+	st, err := s.repo.RecordTrip(r.PathValue("id"), u.ID, cleanLines(req.Items))
 	respond(w, http.StatusOK, st, err)
 }
 
-// parseReceipt extracts the ordered item names from receipt text. The client
-// lets the user exclude out-of-order items before recording it as a trip.
-func (s *Server) parseReceipt(w http.ResponseWriter, r *http.Request) {
+// parseReceipt extracts the ordered item lines from receipt text and, given
+// a listId, maps each line to an item on that list by keyword.
+func (s *Server) parseReceipt(w http.ResponseWriter, r *http.Request, u store.User) {
 	var req struct {
-		Text string `json:"text"`
+		Text   string `json:"text"`
+		ListID string `json:"listId"`
 	}
 	if !readJSON(w, r, &req) {
 		return
 	}
-	items := receipt.Parse(req.Text)
-	if items == nil {
-		items = []string{}
+	var names []string
+	if req.ListID != "" {
+		l, err := s.repo.GetList(req.ListID, u.ID)
+		if err != nil {
+			respond(w, 0, nil, err)
+			return
+		}
+		for _, it := range l.Items {
+			names = append(names, it.Name)
+		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	writeJSON(w, http.StatusOK, map[string]any{"matches": receipt.MatchLines(receipt.Parse(req.Text), names)})
 }
 
-// ocr accepts a multipart "image" and returns the recognised text lines.
-// Requires the tesseract binary; returns 501 otherwise.
-func (s *Server) ocr(w http.ResponseWriter, r *http.Request) {
-	bin, err := exec.LookPath("tesseract")
-	if err != nil {
-		httpError(w, http.StatusNotImplemented, "OCR unavailable: install tesseract-ocr on the server")
+type receiptLine struct {
+	Item   string `json:"item"`
+	Order  bool   `json:"order"`  // use for learning the walking order
+	Bought bool   `json:"bought"` // counts as bought for statistics
+}
+
+// applyReceipt treats a receipt as bought: it records the walking order as a
+// trip and completes the chosen list (or a new one) with the bought items.
+func (s *Server) applyReceipt(w http.ResponseWriter, r *http.Request, u store.User) {
+	var req struct {
+		ListID string        `json:"listId"`
+		Lines  []receiptLine `json:"lines"`
+	}
+	if !readJSON(w, r, &req) {
 		return
 	}
+	storeID := r.PathValue("id")
+	if _, err := s.repo.Get(storeID, u.ID); err != nil {
+		respond(w, 0, nil, err)
+		return
+	}
+	var order []string
+	var bought []store.Item
+	for _, l := range req.Lines {
+		if strings.TrimSpace(l.Item) == "" || !l.Bought {
+			continue
+		}
+		bought = append(bought, store.Item{Name: l.Item, Qty: 1})
+		if l.Order {
+			order = append(order, l.Item)
+		}
+	}
+	if len(bought) == 0 {
+		httpError(w, http.StatusBadRequest, "no bought items")
+		return
+	}
+	listID := req.ListID
+	if listID == "" {
+		l, err := s.repo.CreateList(u.ID, "Receipt", nil, "")
+		if err != nil {
+			respond(w, 0, nil, err)
+			return
+		}
+		listID = l.ID
+	}
+	l, err := s.repo.CompleteList(listID, u.ID, bought)
+	if err != nil {
+		respond(w, 0, nil, err)
+		return
+	}
+	st, err := s.repo.Get(storeID, u.ID)
+	if len(order) >= 2 {
+		st, err = s.repo.RecordTrip(storeID, u.ID, order)
+	}
+	respond(w, http.StatusOK, map[string]any{"list": l, "store": st}, err)
+}
+
+// ocr accepts a multipart "image" (photo or PDF) and returns its text lines.
+// Photos need tesseract, PDFs (digital receipts) need pdftotext.
+func (s *Server) ocr(w http.ResponseWriter, r *http.Request, _ store.User) {
 	r.Body = http.MaxBytesReader(w, r.Body, 20<<20)
-	f, _, err := r.FormFile("image")
+	f, hdr, err := r.FormFile("image")
 	if err != nil {
 		httpError(w, http.StatusBadRequest, "multipart field 'image' required")
 		return
 	}
 	defer f.Close()
+	head := make([]byte, 5)
+	n, _ := io.ReadFull(f, head)
+	isPDF := string(head[:n]) == "%PDF-" || strings.HasSuffix(strings.ToLower(hdr.Filename), ".pdf")
+	tool := "tesseract"
+	if isPDF {
+		tool = "pdftotext"
+	}
+	bin, err := exec.LookPath(tool)
+	if err != nil {
+		httpError(w, http.StatusNotImplemented, "unavailable: install "+tool+" on the server")
+		return
+	}
 	tmp, err := os.CreateTemp("", "ocr-*")
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	defer os.Remove(tmp.Name())
-	if _, err := io.Copy(tmp, f); err != nil {
-		tmp.Close()
+	_, err = io.Copy(tmp, io.MultiReader(strings.NewReader(string(head[:n])), f))
+	tmp.Close()
+	if err != nil {
 		httpError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	tmp.Close()
-	lang := r.URL.Query().Get("lang")
-	if lang == "" {
-		lang = "eng"
+	var cmd *exec.Cmd
+	if isPDF {
+		cmd = exec.CommandContext(r.Context(), bin, "-layout", tmp.Name(), "-")
+	} else {
+		lang := r.URL.Query().Get("lang")
+		if lang == "" {
+			lang = "eng"
+		}
+		cmd = exec.CommandContext(r.Context(), bin, tmp.Name(), "stdout", "-l", lang)
 	}
-	out, err := exec.CommandContext(r.Context(), bin, tmp.Name(), "stdout", "-l", lang).Output()
+	out, err := cmd.Output()
 	if err != nil {
-		httpError(w, http.StatusUnprocessableEntity, "OCR failed: "+err.Error())
+		httpError(w, http.StatusUnprocessableEntity, "reading failed: "+err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"lines": cleanLines(strings.Split(string(out), "\n"))})
@@ -196,6 +308,8 @@ func respond(w http.ResponseWriter, status int, v any, err error) {
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		httpError(w, http.StatusNotFound, "not found")
+	case errors.Is(err, store.ErrForbidden):
+		httpError(w, http.StatusForbidden, "not allowed")
 	case err != nil:
 		httpError(w, http.StatusInternalServerError, err.Error())
 	default:
@@ -211,17 +325,4 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func httpError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
-}
-
-func cors(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		h.ServeHTTP(w, r)
-	})
 }

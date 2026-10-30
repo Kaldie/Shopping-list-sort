@@ -1,3 +1,7 @@
+// Called on any 401 so the app can show the sign-in screen.
+let onUnauthorized = () => {}
+export const setUnauthorizedHandler = (fn) => (onUnauthorized = fn)
+
 async function req(method, path, body) {
   const res = await fetch(`/api${path}`, {
     method,
@@ -5,6 +9,7 @@ async function req(method, path, body) {
     body: body ? JSON.stringify(body) : undefined,
   })
   if (res.status === 204) return null
+  if (res.status === 401 && !path.startsWith('/auth') && path !== '/me') onUnauthorized()
   const data = await res.json()
   if (!res.ok) throw new Error(data.error || res.statusText)
   return data
@@ -17,7 +22,15 @@ export const api = {
   deleteStore: (id) => req('DELETE', `/stores/${id}`),
   layout: (id) => req('GET', `/stores/${id}/layout`),
   sort: (id, items) => req('POST', `/stores/${id}/sort`, { items }),
-  parseReceipt: async (text) => (await req('POST', '/receipt/parse', { text })).items,
+  authConfig: () => req('GET', '/auth/config'),
+  me: () => req('GET', '/me'),
+  loginGoogle: (credential) => req('POST', '/auth/google', { credential }),
+  loginDev: (name) => req('POST', '/auth/dev', { name }),
+  logout: () => req('POST', '/auth/logout'),
+  forkStore: (id) => req('POST', `/stores/${id}/fork`),
+  unforkStore: (id) => req('DELETE', `/stores/${id}/fork`),
+  parseReceipt: async (text, listId) => (await req('POST', '/receipt/parse', { text, listId })).matches,
+  applyReceipt: (storeId, listId, lines) => req('POST', `/stores/${storeId}/receipt`, { listId, lines }),
   trip: (id, items) => req('POST', `/stores/${id}/trips`, { items }),
   lists: () => req('GET', '/lists'),
   getList: (id) => req('GET', `/lists/${id}`),

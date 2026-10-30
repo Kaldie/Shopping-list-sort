@@ -129,6 +129,13 @@ cd frontend && npm install && npm run dev  # :5173, proxies /api → :8080
 | Receipts | A scanned receipt **means bought**: it records the trip *and* completes the list for stats. Each line gets a second toggle: **"didn't buy this"** (excluded from stats and ordering), next to the existing "don't use for ordering" dot. |
 | Matching names | **Keyword match, no product catalogue.** A receipt line matches a list item if the line contains the item's word (`AH HALFV MELK 1L` ⊇ `melk`). Longest keyword wins; no match → item added as-is. Good enough, YOLO. |
 
+## Status
+
+- ✅ 1 Auth & ownership · ✅ 2 Voted shared layouts with forks · ✅ 3 Receipt = bought (PDF via `pdftotext`, photo via `tesseract`, asks which list) · ✅ 5 Dockerfile
+- ⏳ 4 SQLite: deferred — the JSON file is fine for a personal tool.
+- Voting: each user casts **one vote per item pair** (their own majority), so one user's
+  nonsense counts once however many trips they record. Forks learn only from their owner.
+
 ## Steps
 
 1. **Auth & ownership**: Google Sign-In in the frontend, `Authorization: Bearer <id token>` → backend verifies against Google's keys, issues a session cookie; `ownerId` on lists/templates/trips.

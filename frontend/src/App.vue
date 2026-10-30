@@ -1,12 +1,15 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { api } from './api.js'
+import { api, setUnauthorizedHandler } from './api.js'
+import SignIn from './components/SignIn.vue'
 import LayoutEditor from './components/LayoutEditor.vue'
 import SortView from './components/SortView.vue'
 import ReceiptView from './components/ReceiptView.vue'
 import ListView from './components/ListView.vue'
 import StatsView from './components/StatsView.vue'
 
+const user = ref(null)
+const checked = ref(false)
 const stores = ref([])
 const selectedId = ref(localStorage.getItem('storeId') || '')
 const tab = ref('list')
@@ -48,10 +51,27 @@ async function create() {
 
 async function remove() {
   if (!selected.value || !confirm(`Delete ${selected.value.name}?`)) return
-  await api.deleteStore(selected.value.id)
-  selectedId.value = ''
+  try {
+    await api.deleteStore(selected.value.id)
+    selectedId.value = ''
+    await load()
+  } catch {
+    alert('Only the creator can delete a supermarket, and only while nobody else uses it.')
+  }
+}
+
+async function signedIn(u) {
+  user.value = u
   await load()
 }
+
+async function logout() {
+  await api.logout()
+  user.value = null
+  stores.value = []
+}
+
+setUnauthorizedHandler(() => (user.value = null))
 
 function selectList(id) {
   listId.value = id
@@ -68,12 +88,28 @@ function onUpdated(store) {
   if (i >= 0) stores.value[i] = store
 }
 
-onMounted(load)
+onMounted(async () => {
+  try {
+    user.value = await api.me()
+    await load()
+  } catch {
+    user.value = null
+  }
+  checked.value = true
+})
 </script>
 
 <template>
+  <SignIn v-if="checked && !user" @signed-in="signedIn" />
+  <template v-else-if="user">
   <header class="topbar">
-    <h1><span class="logo">🛒</span> Shopping List Sort</h1>
+    <h1>
+      <span class="logo">🛒</span> <span class="grow">Shopping List Sort</span>
+      <button class="avatar" :title="`Signed in as ${user.email || user.name} — sign out`" @click="logout">
+        <img v-if="user.picture" :src="user.picture" alt="" referrerpolicy="no-referrer" />
+        <span v-else>{{ user.name[0]?.toUpperCase() }}</span>
+      </button>
+    </h1>
     <div class="store-picker">
       <select :value="selectedId" aria-label="Supermarket" @change="select($event.target.value)">
         <option disabled value="">Choose a supermarket…</option>
@@ -81,7 +117,7 @@ onMounted(load)
           {{ s.name }} · {{ s.trips }} {{ s.trips === 1 ? 'trip' : 'trips' }}
         </option>
       </select>
-      <button v-if="selected" class="icon" title="Delete supermarket" @click="remove">🗑</button>
+      <button v-if="selected && selected.createdBy === user.id" class="icon" title="Delete supermarket" @click="remove">🗑</button>
     </div>
     <details class="add-store" :open="!stores.length">
       <summary>+ Add supermarket</summary>
@@ -110,11 +146,12 @@ onMounted(load)
       @list-done="listDone"
     />
     <StatsView v-else-if="tab === 'stats'" />
-    <ReceiptView v-else-if="tab === 'receipt'" :store="selected" @updated="onUpdated" />
-    <LayoutEditor v-else :store="selected" @updated="onUpdated" />
+    <ReceiptView v-else-if="tab === 'receipt'" :store="selected" :list-id="listId" @updated="onUpdated" @list-done="selectList('')" />
+    <LayoutEditor v-else :store="selected" :user-id="user.id" @updated="onUpdated" />
   </main>
   <div v-else class="empty">
     <div class="empty-icon">🏪</div>
     <p>Add a supermarket to get started.</p>
   </div>
+  </template>
 </template>

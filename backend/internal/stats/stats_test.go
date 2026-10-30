@@ -8,7 +8,7 @@ import (
 
 func TestTemplateSuggestions(t *testing.T) {
 	repo, _ := store.Open("")
-	tmpl, _ := repo.CreateTemplate("Weekly", []store.Item{{Name: "Milk", Qty: 1}, {Name: "Bread"}, {Name: "Caviar"}})
+	tmpl, _ := repo.CreateTemplate("u1", "Weekly", []store.Item{{Name: "Milk", Qty: 1}, {Name: "Bread"}, {Name: "Caviar"}})
 	weeks := [][]store.Item{
 		{{Name: "milk", Qty: 2}, {Name: "bread"}, {Name: "bananas"}},
 		{{Name: "milk", Qty: 2}, {Name: "bread"}, {Name: "bananas"}},
@@ -16,14 +16,14 @@ func TestTemplateSuggestions(t *testing.T) {
 		{{Name: "milk", Qty: 2}, {Name: "bread"}, {Name: "bananas"}},
 	}
 	for _, items := range weeks {
-		l, _ := repo.ListFromTemplate(tmpl.ID, "")
-		if _, err := repo.CompleteList(l.ID, items); err != nil {
+		l, _ := repo.ListFromTemplate(tmpl.ID, "u1", "")
+		if _, err := repo.CompleteList(l.ID, "u1", items); err != nil {
 			t.Fatal(err)
 		}
 	}
-	repo.CreateList("open, not completed", []store.Item{{Name: "bananas"}}, tmpl.ID)
+	repo.CreateList("u1", "open, not completed", []store.Item{{Name: "bananas"}}, tmpl.ID)
 
-	r := Compute(repo.Lists(), &tmpl, 0)
+	r := Compute(repo.Lists("u1"), &tmpl, 0)
 	if r.Lists != 4 {
 		t.Fatalf("lists=%d", r.Lists)
 	}
