@@ -70,7 +70,7 @@ async function finish() {
     <h2>Shopping list</h2>
     <textarea v-model="text" rows="8" placeholder="One item per line" />
     <div class="row">
-      <button @click="sort">Sort for {{ store.name }}</button>
+      <button class="primary" @click="sort">Sort for {{ store.name }}</button>
       <label class="file">
         📷 From photo
         <input type="file" accept="image/*" capture="environment" @change="fromPhoto" />
@@ -82,17 +82,18 @@ async function finish() {
 
   <section v-if="groups.length">
     <h2>Route <small class="muted">{{ picked.length }}/{{ total }}</small></h2>
+    <div class="progress"><div :style="{ width: (100 * picked.length) / total + '%' }" /></div>
     <p class="muted small">
       Tick items off as you put them in your cart — the order you tick them
       teaches the app this store's layout.
     </p>
     <div v-for="g in groups" :key="g.section" class="group">
-      <h3>{{ g.section }}</h3>
+      <h3>{{ g.section }} <span class="count">{{ g.items.length }}</span></h3>
       <label v-for="item in g.items" :key="item" class="check" :class="{ done: picked.includes(item) }">
         <input type="checkbox" :checked="picked.includes(item)" @change="toggle(item)" />
         {{ item }}
       </label>
     </div>
-    <button @click="finish">Finish trip &amp; learn</button>
+    <button class="primary block sticky-action" @click="finish">Finish trip &amp; learn</button>
   </section>
 </template>

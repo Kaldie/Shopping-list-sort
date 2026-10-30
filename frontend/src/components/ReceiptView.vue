@@ -78,7 +78,7 @@ async function record() {
     <p class="muted small">
       Went back for something you forgot? Tap its dot so it isn't used for ordering.
     </p>
-    <ol class="list">
+    <ol class="list numbered">
       <li v-for="(it, i) in items" :key="i" :class="{ excluded: !it.use }">
         <button
           class="dot"
@@ -90,6 +90,6 @@ async function record() {
         <input v-model="it.name" class="inline" />
       </li>
     </ol>
-    <button @click="record">Learn from this receipt</button>
+    <button class="primary block" @click="record">Learn from this receipt</button>
   </section>
 </template>

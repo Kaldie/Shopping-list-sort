@@ -77,10 +77,10 @@ function adoptLearned() {
       Walk the store once and list the sections you pass — or upload photos of
       the aisle signs <em>in walking order</em>. Trips you record refine this.
     </p>
-    <ol class="list">
+    <ol class="list numbered">
       <li v-for="(s, i) in sections" :key="s + i">
-        <span>{{ s }}</span>
-        <span>
+        <span class="grow">{{ s }}</span>
+        <span class="actions">
           <button class="ghost" @click="move(i, -1)">↑</button>
           <button class="ghost" @click="move(i, 1)">↓</button>
           <button class="ghost" @click="removeAt(i)">✕</button>
@@ -102,11 +102,11 @@ function adoptLearned() {
   <section v-if="layout">
     <h2>Generated layout</h2>
     <p class="muted">Blends your section order with what {{ store.trips }} recorded trips show.</p>
-    <ol class="list">
+    <ol class="list numbered">
       <li v-for="s in layout.sections" :key="s.name">
-        <span>
+        <span class="grow">
           <strong>{{ s.name }}</strong>
-          <small class="muted"> · {{ s.source }} · {{ Math.round(s.position * 100) }}%</small>
+          <span class="badge" :class="s.source">{{ s.source }}</span>
           <div v-if="s.items.length" class="muted small">{{ s.items.join(', ') }}</div>
         </span>
       </li>
