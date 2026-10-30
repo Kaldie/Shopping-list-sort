@@ -1,14 +1,18 @@
-# In the cluster the ingress controller takes Caddy's role (TLS + proxy).
-# Adjust host, ingressClassName and the cert-manager issuer to your cluster.
+# Traefik ingress: HTTPS on the websecure entrypoint. Adjust the host, and
+# pick ONE way to get a certificate:
+#  - cert-manager: keep the cert-manager annotation and the tls.secretName.
+#  - Traefik's own ACME resolver: remove the cert-manager annotation and the
+#    secretName, and add  traefik.ingress.kubernetes.io/router.tls.certresolver: <resolver>
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: app
   annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
     cert-manager.io/cluster-issuer: letsencrypt
-    nginx.ingress.kubernetes.io/proxy-body-size: 25m
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik
   tls:
     - hosts: [shop.example.nl]
       secretName: app-tls

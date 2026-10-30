@@ -45,7 +45,8 @@ docker build -t ghcr.io/kaldie/shopping-list-sort:latest . && docker push ghcr.i
 kubectl apply -k deploy/k8s
 ```
 
-- In the cluster the **ingress controller** plays Caddy's role (TLS via cert-manager).
+- In the cluster **Traefik** (ingress) plays Caddy's role: TLS via cert-manager or Traefik's own ACME resolver (see `ingress.yaml`).
+- The image is built by `.github/workflows/image.yml` and pushed to `ghcr.io/kaldie/shopping-list-sort` on every push to `main`. After the first push, set the package to **Public** (GitHub → your profile → Packages → shopping-list-sort → Package settings) so the cluster can pull it without credentials.
 - One replica with `Recreate` strategy: the data is a single JSON file on a
   ReadWriteOnce volume.
 - Pods run under the `restricted` Pod Security Standard: non-root, read-only
