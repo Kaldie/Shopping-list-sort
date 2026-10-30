@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { api } from './api.js'
 import LayoutEditor from './components/LayoutEditor.vue'
 import SortView from './components/SortView.vue'
+import ReceiptView from './components/ReceiptView.vue'
 
 const stores = ref([])
 const selectedId = ref(localStorage.getItem('storeId') || '')
@@ -72,9 +73,11 @@ onMounted(load)
   <main v-if="selected">
     <nav class="tabs">
       <button :class="{ active: tab === 'sort' }" @click="tab = 'sort'">Sort &amp; shop</button>
+      <button :class="{ active: tab === 'receipt' }" @click="tab = 'receipt'">Receipt</button>
       <button :class="{ active: tab === 'layout' }" @click="tab = 'layout'">Layout</button>
     </nav>
     <SortView v-if="tab === 'sort'" :store="selected" @updated="onUpdated" />
+    <ReceiptView v-else-if="tab === 'receipt'" :store="selected" @updated="onUpdated" />
     <LayoutEditor v-else :store="selected" @updated="onUpdated" />
   </main>
   <p v-else class="muted">Add a supermarket to get started.</p>

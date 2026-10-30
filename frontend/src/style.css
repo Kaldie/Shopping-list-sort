@@ -49,3 +49,10 @@ button.ghost { background: transparent; color: var(--fg); border-color: var(--bo
 .file input { display: none; }
 .check { display: block; padding: 6px 0; }
 .check.done { text-decoration: line-through; color: var(--muted); }
+.dot {
+  width: 16px; height: 16px; padding: 0; border-radius: 50%; margin-right: 8px; vertical-align: middle;
+  background: var(--accent); border: 2px solid var(--accent);
+}
+.dot.off { background: transparent; border-color: var(--error); }
+.excluded input.inline { text-decoration: line-through; color: var(--muted); }
+input.inline { border: none; padding: 2px 4px; background: transparent; width: calc(100% - 40px); }

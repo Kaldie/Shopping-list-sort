@@ -16,6 +16,7 @@ produces anyway, and refine it every time they shop.
 | **Aisle-sign photos**, taken in walking order | OCR → ordered list of section names (e.g. "Bread", "Dairy") | Strong, one-off bootstrap |
 | **Manual section editor** | User drags sections into order | Strong, explicit |
 | **Shopping trips** (check items off in the app while shopping) | The *order of check-offs* is an observed walk through the store | Weak per trip, strong in aggregate |
+| **Self-scan receipts** (hand scanner) | Receipt lines are in scan = pick order → a trip for free. Each line has a dot to exclude "went back for it" items | Strong, effortless |
 | **Shopping-list photo** | OCR → list of items (input to sorting, not layout) | — |
 | **Item → section assignment** | Each item learned to belong to a section; seeded by a keyword dictionary | Lets unseen items be placed |
 
@@ -65,6 +66,7 @@ frontend/ (Vue 3 + Vite)        backend/ (Go, stdlib only)
   Layout editor (drag sections)    /api/stores/{id}/layout  generate layout
   Sort view (text or photo)        /api/stores/{id}/sort    sort a list
   Shop mode (check-off = trip)     /api/stores/{id}/trips   record a trip
+                                   /api/receipt/parse     receipt text → items
                                    /api/ocr               image → lines
 ```
 
@@ -76,8 +78,11 @@ photo's first line becomes the next section.
 ## 7. Milestones
 
 1. ✅ Backend: model, JSON store, ranking, sort, trips, OCR endpoint, tests.
-2. ✅ Frontend: stores, layout editor, sort, shop mode with trip recording.
-3. Next: multi-store per user/auth; Vision-LLM OCR for handwriting; per-store
+2. ✅ Receipt input: OCR/paste → item lines (prices, totals, payment, headers
+   stripped) → user taps the dot on out-of-order items → recorded as a trip.
+   Excluded items add no pairs at all, so a go-back can't corrupt the order.
+3. ✅ Frontend: stores, layout editor, sort, shop mode with trip recording.
+4. Next: multi-store per user/auth; Vision-LLM OCR for handwriting; per-store
    item synonyms ("melk" = "milk"); export sorted list to share.
 
 ## 8. Running

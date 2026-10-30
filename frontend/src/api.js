@@ -17,6 +17,7 @@ export const api = {
   deleteStore: (id) => req('DELETE', `/stores/${id}`),
   layout: (id) => req('GET', `/stores/${id}/layout`),
   sort: (id, items) => req('POST', `/stores/${id}/sort`, { items }),
+  parseReceipt: async (text) => (await req('POST', '/receipt/parse', { text })).items,
   trip: (id, items) => req('POST', `/stores/${id}/trips`, { items }),
   async ocr(file) {
     const fd = new FormData()

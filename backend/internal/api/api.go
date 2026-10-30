@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/kaldie/shopping-list-sort/backend/internal/layout"
+	"github.com/kaldie/shopping-list-sort/backend/internal/receipt"
 	"github.com/kaldie/shopping-list-sort/backend/internal/store"
 )
 
@@ -28,6 +29,7 @@ func New(repo *store.Repository) http.Handler {
 	mux.HandleFunc("POST /api/stores/{id}/sort", s.sortList)
 	mux.HandleFunc("POST /api/stores/{id}/trips", s.recordTrip)
 	mux.HandleFunc("POST /api/ocr", s.ocr)
+	mux.HandleFunc("POST /api/receipt/parse", s.parseReceipt)
 	return cors(mux)
 }
 
@@ -113,6 +115,22 @@ func (s *Server) recordTrip(w http.ResponseWriter, r *http.Request) {
 	}
 	st, err := s.repo.RecordTrip(r.PathValue("id"), cleanLines(req.Items))
 	respond(w, http.StatusOK, st, err)
+}
+
+// parseReceipt extracts the ordered item names from receipt text. The client
+// lets the user exclude out-of-order items before recording it as a trip.
+func (s *Server) parseReceipt(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Text string `json:"text"`
+	}
+	if !readJSON(w, r, &req) {
+		return
+	}
+	items := receipt.Parse(req.Text)
+	if items == nil {
+		items = []string{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
 // ocr accepts a multipart "image" and returns the recognised text lines.
