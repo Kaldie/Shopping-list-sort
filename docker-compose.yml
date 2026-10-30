@@ -38,6 +38,30 @@ services:
       - caddy-data:/data
       - caddy-config:/config
 
+  # Keeps yourname.duckdns.org pointing at your current home IP.
+  # Only runs with the profile:  docker compose --profile duckdns up -d
+  duckdns:
+    image: curlimages/curl:8.10.1
+    profiles: [duckdns]
+    restart: unless-stopped
+    environment:
+      DUCKDNS_SUBDOMAIN: ${DUCKDNS_SUBDOMAIN:-}
+      DUCKDNS_TOKEN: ${DUCKDNS_TOKEN:-}
+    # Every 5 minutes; empty ip= lets DuckDNS use the address the request comes from.
+    # The URL (with token) is never printed, only DuckDNS's OK/KO answer.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        if [ -z "$${DUCKDNS_SUBDOMAIN}" ] || [ -z "$${DUCKDNS_TOKEN}" ]; then
+          echo "set DUCKDNS_SUBDOMAIN and DUCKDNS_TOKEN in .env"; exit 1
+        fi
+        while true; do
+          r=$$(curl -fsS "https://www.duckdns.org/update?domains=$${DUCKDNS_SUBDOMAIN}&token=$${DUCKDNS_TOKEN}&ip=" 2>&1)
+          echo "$$(date -Iseconds) duckdns update: $${r:-no answer}"
+          sleep 300
+        done
+
 volumes:
   app-data:
   caddy-data:

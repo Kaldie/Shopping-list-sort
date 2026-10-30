@@ -30,10 +30,24 @@ Stack: `caddy` (ports 80/443, HTTPS, security headers, 25 MB uploads) →
 `app` (Go API + built Vue frontend + tesseract/pdftotext, runs as non-root,
 data in the `app-data` volume).
 
-## Home server
+## Home server (DuckDNS + port forwarding)
 
-Set `SITE_ADDRESS=shop.yourdomain.nl` in `.env`, point DNS at your home IP and
-forward ports 80 and 443. Caddy gets a Let's Encrypt certificate automatically.
+1. Claim `yourname.duckdns.org` at https://www.duckdns.org and copy the token.
+2. Check you have a public IPv4: the WAN IP in your router must equal
+   https://whatismyip.com. If not (CGNAT), port forwarding can't work.
+3. On the router, forward **TCP 80, TCP 443 and UDP 443** to the home server.
+4. In `.env`:
+   ```
+   SITE_ADDRESS=yourname.duckdns.org
+   DUCKDNS_SUBDOMAIN=yourname
+   DUCKDNS_TOKEN=<token>
+   GOOGLE_CLIENT_ID=<client id>   # required when exposed: otherwise anyone can use the dev login
+   ```
+5. `docker compose --profile duckdns up -d --build`
+6. Check: `docker compose logs duckdns` should say `OK`, and `docker compose logs caddy`
+   should show a certificate obtained for your domain. Then open https://yourname.duckdns.org.
+
+Add `https://yourname.duckdns.org` to the Google client ID's *Authorized JavaScript origins*.
 
 ## Kubernetes
 
