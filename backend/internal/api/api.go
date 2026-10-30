@@ -30,6 +30,7 @@ func New(repo *store.Repository) http.Handler {
 	mux.HandleFunc("POST /api/stores/{id}/trips", s.recordTrip)
 	mux.HandleFunc("POST /api/ocr", s.ocr)
 	mux.HandleFunc("POST /api/receipt/parse", s.parseReceipt)
+	s.registerLists(mux)
 	return cors(mux)
 }
 
@@ -194,7 +195,7 @@ func readJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 func respond(w http.ResponseWriter, status int, v any, err error) {
 	switch {
 	case errors.Is(err, store.ErrNotFound):
-		httpError(w, http.StatusNotFound, "store not found")
+		httpError(w, http.StatusNotFound, "not found")
 	case err != nil:
 		httpError(w, http.StatusInternalServerError, err.Error())
 	default:

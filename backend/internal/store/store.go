@@ -31,9 +31,11 @@ type Trip struct {
 }
 
 type data struct {
-	Stores map[string]*Store `json:"stores"`
-	Trips  []Trip            `json:"trips"`
-	NextID int               `json:"nextId"`
+	Stores    map[string]*Store    `json:"stores"`
+	Trips     []Trip               `json:"trips"`
+	Lists     map[string]*List     `json:"lists"`
+	Templates map[string]*Template `json:"templates"`
+	NextID    int                  `json:"nextId"`
 }
 
 // Repository is a goroutine-safe JSON file store.
@@ -44,19 +46,26 @@ type Repository struct {
 }
 
 func Open(path string) (*Repository, error) {
-	r := &Repository{path: path, d: data{Stores: map[string]*Store{}}}
-	b, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return r, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(b, &r.d); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
+	r := &Repository{path: path}
+	if path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		if err == nil {
+			if err := json.Unmarshal(b, &r.d); err != nil {
+				return nil, fmt.Errorf("parse %s: %w", path, err)
+			}
+		}
 	}
 	if r.d.Stores == nil {
 		r.d.Stores = map[string]*Store{}
+	}
+	if r.d.Lists == nil {
+		r.d.Lists = map[string]*List{}
+	}
+	if r.d.Templates == nil {
+		r.d.Templates = map[string]*Template{}
 	}
 	return r, nil
 }
@@ -115,9 +124,8 @@ func (r *Repository) Get(id string) (Store, error) {
 func (r *Repository) Create(name string, sections []string) (Store, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.d.NextID++
 	s := &Store{
-		ID:          fmt.Sprintf("s%d", r.d.NextID),
+		ID:          r.newID("s"),
 		Name:        name,
 		Sections:    sections,
 		ItemSection: map[string]string{},

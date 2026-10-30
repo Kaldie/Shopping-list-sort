@@ -1,46 +1,35 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { api, toLines } from '../api.js'
+import { api } from '../api.js'
 
-const props = defineProps({ store: { type: Object, required: true } })
-const emit = defineEmits(['updated'])
+const props = defineProps({
+  store: { type: Object, required: true },
+  listId: { type: String, default: '' },
+})
+const emit = defineEmits(['updated', 'edit-list', 'list-done'])
 
-const text = ref(localStorage.getItem('list') || '')
+const list = ref(null)
 const groups = ref([])
-const picked = ref([]) // items in the order they were checked off
-const busy = ref('')
+const picked = ref([]) // item names in the order they were checked off
 const error = ref('')
 
-watch(text, (t) => localStorage.setItem('list', t))
-watch(() => props.store.id, () => { groups.value = []; picked.value = [] })
-
+const qty = computed(() => Object.fromEntries((list.value?.items || []).map((i) => [i.name, i.qty])))
 const total = computed(() => groups.value.reduce((n, g) => n + g.items.length, 0))
 
-async function sort() {
+async function load() {
   error.value = ''
+  groups.value = []
+  picked.value = []
+  list.value = null
+  if (!props.listId) return
   try {
-    groups.value = (await api.sort(props.store.id, toLines(text.value))).groups
-    picked.value = []
+    list.value = await api.getList(props.listId)
+    groups.value = (await api.sort(props.store.id, list.value.items.map((i) => i.name))).groups
   } catch (e) {
     error.value = e.message
   }
 }
-
-async function fromPhoto(e) {
-  const f = e.target.files[0]
-  if (!f) return
-  busy.value = 'Reading list…'
-  error.value = ''
-  try {
-    const lines = await api.ocr(f)
-    text.value = [text.value, ...lines].filter(Boolean).join('\n')
-  } catch (err) {
-    error.value = err.message
-  } finally {
-    busy.value = ''
-    e.target.value = ''
-  }
-}
+watch(() => [props.store.id, props.listId], load, { immediate: true })
 
 function toggle(item) {
   const i = picked.value.indexOf(item)
@@ -48,50 +37,47 @@ function toggle(item) {
   else picked.value.push(item)
 }
 
-// The check-off order is an observed walk through the store: send it as a trip.
+// The check-off order is an observed walk through the store: record it as a
+// trip, and complete the list with what was actually bought (for statistics).
 async function finish() {
-  if (picked.value.length < 2) {
-    error.value = 'Check off at least two items to record a trip.'
+  if (!picked.value.length) {
+    error.value = 'Tick off what you bought first.'
     return
   }
-  const s = await api.trip(props.store.id, picked.value)
-  emit('updated', s)
-  const remaining = toLines(text.value).filter(
-    (l) => !picked.value.some((p) => p.toLowerCase() === l.toLowerCase()),
-  )
-  text.value = remaining.join('\n')
-  groups.value = []
-  picked.value = []
+  if (picked.value.length < total.value && !confirm('Not everything is ticked. Finish anyway?')) return
+  if (picked.value.length >= 2) emit('updated', await api.trip(props.store.id, picked.value))
+  await api.completeList(list.value.id, picked.value.map((name) => ({ name, qty: qty.value[name] || 1 })))
+  emit('list-done')
 }
 </script>
 
 <template>
-  <section>
-    <h2>Shopping list</h2>
-    <textarea v-model="text" rows="8" placeholder="One item per line" />
-    <div class="row">
-      <button class="primary" @click="sort">Sort for {{ store.name }}</button>
-      <label class="file">
-        📷 From photo
-        <input type="file" accept="image/*" capture="environment" @change="fromPhoto" />
-      </label>
-    </div>
-    <p v-if="busy" class="muted">{{ busy }}</p>
+  <section v-if="!listId || !list">
     <p v-if="error" class="error">{{ error }}</p>
+    <div class="empty">
+      <div class="empty-icon">📝</div>
+      <p>No list selected.</p>
+      <button @click="emit('edit-list')">Make a list</button>
+    </div>
   </section>
 
-  <section v-if="groups.length">
-    <h2>Route <small class="muted">{{ picked.length }}/{{ total }}</small></h2>
-    <div class="progress"><div :style="{ width: (100 * picked.length) / total + '%' }" /></div>
+  <section v-else>
+    <h2>
+      <span class="grow">{{ list.name }} <small class="muted">{{ picked.length }}/{{ total }}</small></span>
+      <button class="ghost" @click="emit('edit-list')">Edit</button>
+    </h2>
+    <div class="progress"><div :style="{ width: total ? (100 * picked.length) / total + '%' : 0 }" /></div>
     <p class="muted small">
-      Tick items off as you put them in your cart — the order you tick them
-      teaches the app this store's layout.
+      Sorted for {{ store.name }}. Tick items off as you put them in your cart —
+      the order you tick them teaches the app this store's layout.
     </p>
+    <p v-if="error" class="error">{{ error }}</p>
     <div v-for="g in groups" :key="g.section" class="group">
       <h3>{{ g.section }} <span class="count">{{ g.items.length }}</span></h3>
       <label v-for="item in g.items" :key="item" class="check" :class="{ done: picked.includes(item) }">
         <input type="checkbox" :checked="picked.includes(item)" @change="toggle(item)" />
-        {{ item }}
+        <span class="grow">{{ item }}</span>
+        <span v-if="qty[item] > 1" class="count">× {{ qty[item] }}</span>
       </label>
     </div>
     <button class="primary block sticky-action" @click="finish">Finish trip &amp; learn</button>

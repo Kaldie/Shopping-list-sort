@@ -19,6 +19,19 @@ export const api = {
   sort: (id, items) => req('POST', `/stores/${id}/sort`, { items }),
   parseReceipt: async (text) => (await req('POST', '/receipt/parse', { text })).items,
   trip: (id, items) => req('POST', `/stores/${id}/trips`, { items }),
+  lists: () => req('GET', '/lists'),
+  getList: (id) => req('GET', `/lists/${id}`),
+  createList: (name, items) => req('POST', '/lists', { name, items }),
+  updateList: (id, patch) => req('PUT', `/lists/${id}`, patch),
+  deleteList: (id) => req('DELETE', `/lists/${id}`),
+  completeList: (id, items) => req('POST', `/lists/${id}/complete`, items ? { items } : undefined),
+  saveAsTemplate: (id, name) => req('POST', `/lists/${id}/save-as-template`, { name }),
+  templates: () => req('GET', '/templates'),
+  updateTemplate: (id, patch) => req('PUT', `/templates/${id}`, patch),
+  deleteTemplate: (id) => req('DELETE', `/templates/${id}`),
+  newListFromTemplate: (id) => req('POST', `/templates/${id}/new-list`),
+  stats: (templateId, window) =>
+    req('GET', `/stats?${new URLSearchParams({ templateId: templateId || '', window: window || '' })}`),
   async ocr(file) {
     const fd = new FormData()
     fd.append('image', file)

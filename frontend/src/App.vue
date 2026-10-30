@@ -4,16 +4,21 @@ import { api } from './api.js'
 import LayoutEditor from './components/LayoutEditor.vue'
 import SortView from './components/SortView.vue'
 import ReceiptView from './components/ReceiptView.vue'
+import ListView from './components/ListView.vue'
+import StatsView from './components/StatsView.vue'
 
 const stores = ref([])
 const selectedId = ref(localStorage.getItem('storeId') || '')
-const tab = ref('sort')
+const tab = ref('list')
+const listId = ref(localStorage.getItem('listId') || '')
 const newName = ref('')
 const error = ref('')
 const tabs = [
-  { id: 'sort', icon: '📝', label: 'List' },
+  { id: 'list', icon: '📝', label: 'List' },
+  { id: 'sort', icon: '🛒', label: 'Shop' },
   { id: 'receipt', icon: '🧾', label: 'Receipt' },
   { id: 'layout', icon: '🗺️', label: 'Layout' },
+  { id: 'stats', icon: '📊', label: 'Stats' },
 ]
 
 const selected = computed(() => stores.value.find((s) => s.id === selectedId.value))
@@ -39,7 +44,6 @@ async function create() {
   await load()
   document.querySelector('.add-store')?.removeAttribute('open')
   select(s.id)
-  tab.value = 'layout'
 }
 
 async function remove() {
@@ -47,6 +51,16 @@ async function remove() {
   await api.deleteStore(selected.value.id)
   selectedId.value = ''
   await load()
+}
+
+function selectList(id) {
+  listId.value = id
+  localStorage.setItem('listId', id)
+}
+
+function listDone() {
+  selectList('')
+  tab.value = 'list'
 }
 
 function onUpdated(store) {
@@ -64,7 +78,7 @@ onMounted(load)
       <select :value="selectedId" aria-label="Supermarket" @change="select($event.target.value)">
         <option disabled value="">Choose a supermarket…</option>
         <option v-for="s in stores" :key="s.id" :value="s.id">
-          {{ s.name }} · {{ s.trips }} trips
+          {{ s.name }} · {{ s.trips }} {{ s.trips === 1 ? 'trip' : 'trips' }}
         </option>
       </select>
       <button v-if="selected" class="icon" title="Delete supermarket" @click="remove">🗑</button>
@@ -86,7 +100,16 @@ onMounted(load)
         <span>{{ t.label }}</span>
       </button>
     </nav>
-    <SortView v-if="tab === 'sort'" :store="selected" @updated="onUpdated" />
+    <ListView v-if="tab === 'list'" :active-list-id="listId" @select="selectList" @shop="tab = 'sort'" />
+    <SortView
+      v-else-if="tab === 'sort'"
+      :store="selected"
+      :list-id="listId"
+      @updated="onUpdated"
+      @edit-list="tab = 'list'"
+      @list-done="listDone"
+    />
+    <StatsView v-else-if="tab === 'stats'" />
     <ReceiptView v-else-if="tab === 'receipt'" :store="selected" @updated="onUpdated" />
     <LayoutEditor v-else :store="selected" @updated="onUpdated" />
   </main>

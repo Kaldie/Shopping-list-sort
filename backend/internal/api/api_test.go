@@ -47,3 +47,29 @@ func TestFlow(t *testing.T) {
 		t.Fatalf("missing store: %d", c)
 	}
 }
+
+func TestTemplateFlow(t *testing.T) {
+	repo, _ := store.Open("")
+	h := New(repo)
+	var l store.List
+	do(t, h, "POST", "/api/lists", `{"name":"wk1","items":[{"name":"milk","qty":2},{"name":"bread"}]}`, &l)
+	var tm store.Template
+	if c := do(t, h, "POST", "/api/lists/"+l.ID+"/save-as-template", `{"name":"Weekly"}`, &tm); c != 201 || len(tm.Items) != 2 {
+		t.Fatalf("save as template: %d %+v", c, tm)
+	}
+	var l2 store.List
+	do(t, h, "POST", "/api/templates/"+tm.ID+"/new-list", "", &l2)
+	if l2.TemplateID != tm.ID || len(l2.Items) != 2 {
+		t.Fatalf("new list: %+v", l2)
+	}
+	if c := do(t, h, "POST", "/api/lists/"+l2.ID+"/complete", "", nil); c != 200 {
+		t.Fatalf("complete: %d", c)
+	}
+	var rep struct {
+		Lists int `json:"lists"`
+	}
+	do(t, h, "GET", "/api/stats?templateId="+tm.ID, "", &rep)
+	if rep.Lists != 1 {
+		t.Fatalf("stats lists=%d", rep.Lists)
+	}
+}

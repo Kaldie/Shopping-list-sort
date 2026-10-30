@@ -20,12 +20,30 @@ produces anyway, and refine it every time they shop.
 | **Shopping-list photo** | OCR → list of items (input to sorting, not layout) | — |
 | **Item → section assignment** | Each item learned to belong to a section; seeded by a keyword dictionary | Lets unseen items be placed |
 
+## 2b. Making the list: lists, templates, statistics
+
+- **Build a list**: type items (autocomplete from everything you've bought
+  before) with a quantity stepper, or scan a handwritten list (OCR → one item
+  per line).
+- **Templates**: save any list as a template ("Weekly"). Each week, "New list"
+  copies it; you tweak that copy for the week. The template stays untouched.
+- **Completing a list** (finish a Shop trip, or "Mark as bought") stores what
+  was *actually* bought. That history drives statistics:
+  - per item: % of lists it was bought in, average quantity, last bought;
+  - per template, over the last N lists:
+    - **add**: not on the template but bought in ≥50% of lists (≥2 times);
+    - **adjust quantity**: usual quantity differs from the template's;
+    - **remove**: on the template but bought in ≤25% of lists (after ≥4 lists).
+  Each suggestion is one tap to apply to the template.
+
 ## 3. Data model
 
 ```
 Store      { id, name, sections[] (ordered), itemSection{item→section},
              pairs{ "a|b" → count of trips where a was picked before b } }
 Trip       { storeId, items[] (ordered as checked off) }
+List       { id, name, items[{name, qty}], templateId?, createdAt, completedAt? }
+Template   { id, name, items[{name, qty}] }
 Category   built-in keyword → section-name dictionary (fallback)
 ```
 
@@ -66,6 +84,10 @@ frontend/ (Vue 3 + Vite)        backend/ (Go, stdlib only)
   Layout editor (drag sections)    /api/stores/{id}/layout  generate layout
   Sort view (text or photo)        /api/stores/{id}/sort    sort a list
   Shop mode (check-off = trip)     /api/stores/{id}/trips   record a trip
+  List builder + templates         /api/lists, /api/templates   CRUD
+                                   /api/lists/{id}/complete, /save-as-template
+                                   /api/templates/{id}/new-list
+  Stats view                       /api/stats?templateId=&window=
                                    /api/receipt/parse     receipt text → items
                                    /api/ocr               image → lines
 ```
@@ -82,7 +104,8 @@ photo's first line becomes the next section.
    stripped) → user taps the dot on out-of-order items → recorded as a trip.
    Excluded items add no pairs at all, so a go-back can't corrupt the order.
 3. ✅ Frontend: stores, layout editor, sort, shop mode with trip recording.
-4. Next: multi-store per user/auth; Vision-LLM OCR for handwriting; per-store
+4. ✅ Lists, templates and buying statistics with template suggestions.
+5. Next: multi-store per user/auth; Vision-LLM OCR for handwriting; per-store
    item synonyms ("melk" = "milk"); export sorted list to share.
 
 ## 8. Running
