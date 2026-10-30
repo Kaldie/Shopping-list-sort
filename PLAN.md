@@ -114,3 +114,25 @@ photo's first line becomes the next section.
 cd backend && go run ./cmd/server          # :8080, data in ./data.json
 cd frontend && npm install && npm run dev  # :5173, proxies /api → :8080
 ```
+
+---
+
+# Roadmap v2 (decisions from review, 30 Oct 2026)
+
+## Decisions
+
+| Topic | Decision |
+|-------|----------|
+| Users | Sign-in required. **Google Sign-In** (OpenID Connect ID token, verified by the backend). Android/Apple sign-in later. |
+| Ownership | Lists, templates, stats and trips belong to a user. |
+| Supermarket layouts | **Public by default, forked on edit.** A store's layout is shared; the first user to create it publishes it. When a user changes the section order (their route differs), they get a **personal fork**; everyone else keeps the shared one. *(Open: see question A.)* |
+| Receipts | A scanned receipt **means bought**: it records the trip *and* completes the list for stats. Each line gets a second toggle: **"didn't buy this"** (excluded from stats and ordering), next to the existing "don't use for ordering" dot. |
+| Matching names | **Keyword match, no product catalogue.** A receipt line matches a list item if the line contains the item's word (`AH HALFV MELK 1L` ⊇ `melk`). Longest keyword wins; no match → item added as-is. Good enough, YOLO. |
+
+## Steps
+
+1. **Auth & ownership**: Google Sign-In in the frontend, `Authorization: Bearer <id token>` → backend verifies against Google's keys, issues a session cookie; `ownerId` on lists/templates/trips.
+2. **Shared layouts with forks**: `Store.ownerId = ""` (public) or a user id (fork). Reading a layout prefers the user's fork, else the public one. Trips from all users feed the public layout; a fork learns only from its owner's trips.
+3. **Receipt = bought**: receipt upload → pick the open list (or create one) → keyword match → trip + complete list. Two toggles per line.
+4. **Storage**: move JSON file → SQLite (single file, still easy to back up) once there are multiple users.
+5. **Deploy**: one container serving API + built frontend over HTTPS (needed for Google Sign-In and camera access).
