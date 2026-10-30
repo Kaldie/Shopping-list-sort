@@ -1,0 +1,44 @@
+# Local / home-server stack: Caddy (HTTPS) → app (Go API + Vue frontend).
+#
+#   cp .env.example .env    # optional: set GOOGLE_CLIENT_ID / SITE_ADDRESS
+#   docker compose up -d --build
+#   open https://localhost
+services:
+  app:
+    build: .
+    image: shopping-list-sort:latest
+    restart: unless-stopped
+    environment:
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      SECURE_COOKIES: "true"
+    volumes:
+      - app-data:/data
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  app-data:
+  caddy-data:
+  caddy-config:

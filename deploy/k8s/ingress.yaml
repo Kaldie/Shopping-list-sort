@@ -1,0 +1,25 @@
+# In the cluster the ingress controller takes Caddy's role (TLS + proxy).
+# Adjust host, ingressClassName and the cert-manager issuer to your cluster.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    nginx.ingress.kubernetes.io/proxy-body-size: 25m
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [shop.example.nl]
+      secretName: app-tls
+  rules:
+    - host: shop.example.nl
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app
+                port:
+                  name: http

@@ -14,26 +14,50 @@ cd backend && go run ./cmd/server          # http://localhost:8080 (dev login, n
 cd frontend && npm install && npm run dev  # http://localhost:5173
 ```
 
-## Run on a home server
+## Run locally with Docker Compose (Caddy + app)
 
 ```
-docker build -t shopping-list-sort .
-docker run -d -p 8080:8080 -v sls-data:/data \
-  -e GOOGLE_CLIENT_ID=<your-client-id>.apps.googleusercontent.com \
-  shopping-list-sort
+cp .env.example .env          # optional: GOOGLE_CLIENT_ID, SITE_ADDRESS
+docker compose up -d --build
 ```
 
-Put it behind HTTPS (e.g. Caddy or a Cloudflare Tunnel): Google Sign-In,
-the phone camera and the `Secure` session cookie all need it. For plain
-HTTP testing, add `-e SECURE_COOKIES=false`.
+Open https://localhost. Caddy serves HTTPS with its own local CA; your browser
+will warn once unless you trust it (`docker compose exec caddy caddy trust`
+installs it in the container only — on your machine, import
+`/data/caddy/pki/authorities/local/root.crt` from the `caddy-data` volume).
 
-### Google Sign-In setup
+Stack: `caddy` (ports 80/443, HTTPS, security headers, 25 MB uploads) →
+`app` (Go API + built Vue frontend + tesseract/pdftotext, runs as non-root,
+data in the `app-data` volume).
+
+## Home server
+
+Set `SITE_ADDRESS=shop.yourdomain.nl` in `.env`, point DNS at your home IP and
+forward ports 80 and 443. Caddy gets a Let's Encrypt certificate automatically.
+
+## Kubernetes
+
+Manifests live in `deploy/k8s` (Kustomize), all in namespace `shopping-list-sort`:
+
+```
+docker build -t ghcr.io/kaldie/shopping-list-sort:latest . && docker push ghcr.io/kaldie/shopping-list-sort:latest
+# edit deploy/k8s/kustomization.yaml (image, GOOGLE_CLIENT_ID) and ingress.yaml (host, class, issuer)
+kubectl apply -k deploy/k8s
+```
+
+- In the cluster the **ingress controller** plays Caddy's role (TLS via cert-manager).
+- One replica with `Recreate` strategy: the data is a single JSON file on a
+  ReadWriteOnce volume.
+- Pods run under the `restricted` Pod Security Standard: non-root, read-only
+  root filesystem, no capabilities.
+
+## Google Sign-In setup
 
 1. Google Cloud Console → APIs & Services → Credentials → *Create OAuth client ID*,
    type **Web application**.
 2. *Authorized JavaScript origins*: your HTTPS address, e.g. `https://shop.example.nl`
-   (add `http://localhost:5173` for development).
-3. Copy the client ID into `GOOGLE_CLIENT_ID`. No client secret is needed.
+   (add `https://localhost` and `http://localhost:5173` for development).
+3. Put the client ID in `GOOGLE_CLIENT_ID`. No client secret is needed.
 
-Without `GOOGLE_CLIENT_ID` the server runs a name-only dev login — don't
-expose that to the internet.
+Without `GOOGLE_CLIENT_ID` the server runs a name-only dev login: never expose
+that to the internet.

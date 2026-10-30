@@ -1,0 +1,24 @@
+# SITE_ADDRESS: "localhost" for local use (Caddy's own trusted local CA),
+# or your domain (e.g. shop.example.nl) for automatic Let's Encrypt certificates.
+{$SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		# Google Sign-In popup needs to talk back to the page.
+		Cross-Origin-Opener-Policy same-origin-allow-popups
+		-Server
+	}
+
+	# Receipt photos can be several MB.
+	request_body {
+		max_size 25MB
+	}
+
+	reverse_proxy app:8080 {
+		health_uri /healthz
+		health_interval 30s
+	}
+}

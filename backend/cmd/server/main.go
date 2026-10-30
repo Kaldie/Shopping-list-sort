@@ -32,6 +32,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", api.New(repo, cfg))
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })
 	if *static != "" {
 		mux.Handle("/", spa(*static))
 	}

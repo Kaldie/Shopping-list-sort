@@ -1,0 +1,22 @@
+# kubectl apply -k deploy/k8s
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: shopping-list-sort
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: shopping-list-sort
+resources:
+  - namespace.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+configMapGenerator:
+  - name: app-config
+    literals:
+      - GOOGLE_CLIENT_ID=REPLACE_ME.apps.googleusercontent.com
+      - SECURE_COOKIES=true
+images:
+  - name: shopping-list-sort
+    newName: ghcr.io/kaldie/shopping-list-sort # push your image here
+    newTag: latest
