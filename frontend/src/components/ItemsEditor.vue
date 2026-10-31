@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import { api } from '../api.js'
+import { api, toLines } from '../api.js'
 
 // Editable list of { name, qty }. Emits 'change' with the new array.
 const props = defineProps({
@@ -13,6 +13,7 @@ const newName = ref('')
 const newQty = ref(1)
 const busy = ref('')
 const error = ref('')
+const pasted = ref('')
 
 const update = (items) => emit('change', items)
 
@@ -35,6 +36,14 @@ function rename(i, name) {
 
 function remove(i) {
   update(props.items.filter((_, j) => j !== i))
+}
+
+// Pasted text → one item per non-empty line.
+function addPasted() {
+  const lines = toLines(pasted.value)
+  if (!lines.length) return
+  update([...props.items, ...lines.map((name) => ({ name, qty: 1 }))])
+  pasted.value = ''
 }
 
 // Handwritten / printed list photo → one item per recognised line.
@@ -79,6 +88,11 @@ async function scan(e) {
     📷 Scan handwritten list
     <input type="file" accept="image/*" capture="environment" @change="scan" />
   </label>
+  <details class="paste">
+    <summary class="muted small">…or paste a list (one item per line)</summary>
+    <textarea v-model="pasted" rows="6" placeholder="Bananen&#10;Melk&#10;Brood" />
+    <button class="ghost" @click="addPasted">Add items</button>
+  </details>
   <p v-if="busy" class="muted">{{ busy }}</p>
   <p v-if="error" class="error">{{ error }}</p>
 </template>
