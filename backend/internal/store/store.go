@@ -1,4 +1,5 @@
-// Package store holds the domain model and a JSON-file backed repository.
+// Package store holds the domain model and a repository persisted to a JSON
+// file or to Postgres.
 package store
 
 import (
@@ -55,26 +56,47 @@ type data struct {
 	NextID    int                  `json:"nextId"`
 }
 
-// Repository is a goroutine-safe JSON file store.
-type Repository struct {
-	mu   sync.Mutex
-	path string
-	d    data
+// persister writes the whole data set after a mutation. Callers hold the
+// repository lock, so implementations need no locking of their own.
+type persister interface {
+	save(d *data) error
 }
 
+// Repository is a goroutine-safe store. All state lives in memory (one
+// replica) and is written through to a JSON file or to Postgres.
+type Repository struct {
+	mu sync.Mutex
+	p  persister
+	d  data
+}
+
+// Open returns a repository backed by the JSON file at path, or a purely
+// in-memory one when path is empty.
 func Open(path string) (*Repository, error) {
-	r := &Repository{path: path}
+	r := &Repository{}
 	if path != "" {
-		b, err := os.ReadFile(path)
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
+		r.p = fileStore{path}
+		if err := readJSON(path, &r.d); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
-		if err == nil {
-			if err := json.Unmarshal(b, &r.d); err != nil {
-				return nil, fmt.Errorf("parse %s: %w", path, err)
-			}
-		}
 	}
+	r.normalize()
+	return r, nil
+}
+
+func readJSON(path string, d *data) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(b, d); err != nil {
+		return fmt.Errorf("parse %s: %w", path, err)
+	}
+	return nil
+}
+
+// normalize fills nil maps and migrates pre-account data after loading.
+func (r *Repository) normalize() {
 	initMaps(&r.d)
 	for _, s := range r.d.Stores {
 		initStore(s)
@@ -83,7 +105,6 @@ func Open(path string) (*Repository, error) {
 			s.Pairs = nil
 		}
 	}
-	return r, nil
 }
 
 func initMaps(d *data) {
@@ -117,18 +138,25 @@ func initStore(s *Store) {
 }
 
 func (r *Repository) save() error {
-	if r.path == "" {
+	if r.p == nil {
 		return nil
 	}
-	b, err := json.MarshalIndent(r.d, "", "  ")
+	return r.p.save(&r.d)
+}
+
+// fileStore persists the data set as one JSON file, replaced atomically.
+type fileStore struct{ path string }
+
+func (f fileStore) save(d *data) error {
+	b, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return err
 	}
-	tmp := r.path + ".tmp"
+	tmp := f.path + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, r.path)
+	return os.Rename(tmp, f.path)
 }
 
 func Normalize(s string) string { return strings.ToLower(strings.TrimSpace(s)) }

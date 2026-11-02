@@ -34,6 +34,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: app-config
+            - secretRef: # DATABASE_URL, created by deploy/postgres/create-app-db.sh
+                name: shopping-list-db
           readinessProbe:
             httpGet: { path: /healthz, port: http }
             periodSeconds: 10

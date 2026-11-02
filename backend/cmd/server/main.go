@@ -14,11 +14,19 @@ import (
 
 func main() {
 	addr := flag.String("addr", ":8080", "listen address")
-	dataPath := flag.String("data", "data.json", "path to JSON data file")
+	dataPath := flag.String("data", "data.json", "path to JSON data file (imported once when DATABASE_URL is set)")
 	static := flag.String("static", "", "directory with the built frontend to serve (optional)")
 	flag.Parse()
 
-	repo, err := store.Open(*dataPath)
+	// With DATABASE_URL the data lives in Postgres and -data is only read once,
+	// to import an existing JSON file into an empty database.
+	var repo *store.Repository
+	var err error
+	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
+		repo, err = store.OpenPostgres(dsn, *dataPath)
+	} else {
+		repo, err = store.Open(*dataPath)
+	}
 	if err != nil {
 		log.Fatal(err)
 	}

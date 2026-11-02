@@ -61,8 +61,14 @@ kubectl apply -k deploy/k8s
 
 - In the cluster **Traefik** (ingress) plays Caddy's role: TLS via cert-manager or Traefik's own ACME resolver (see `ingress.yaml`).
 - The image is built by `.github/workflows/image.yml` and pushed to `ghcr.io/kaldie/shopping-list-sort` on every push to `main`. After the first push, set the package to **Public** (GitHub → your profile → Packages → shopping-list-sort → Package settings) so the cluster can pull it without credentials.
-- One replica with `Recreate` strategy: the data is a single JSON file on a
-  ReadWriteOnce volume.
+- One replica with `Recreate` strategy: the app keeps its state in memory.
+- Data: with `DATABASE_URL` set (Secret `shopping-list-db`, created by
+  `deploy/postgres/create-app-db.sh shoppinglist shopping-list-sort shopping-list-db`)
+  everything is stored in the shared Postgres. On first start an existing
+  `/data/data.json` is imported once. Without `DATABASE_URL` the app falls back
+  to that JSON file on the volume (dev).
+- Postgres tests: `TEST_DATABASE_URL=postgres://... go test ./internal/store`
+  against a scratch database (the tests truncate its tables).
 - Pods run under the `restricted` Pod Security Standard: non-root, read-only
   root filesystem, no capabilities.
 
