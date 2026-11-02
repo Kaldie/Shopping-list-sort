@@ -17,6 +17,7 @@ const busy = ref('')
 const error = ref('')
 const board = ref(null) // section cards, reorderable
 const unplacedEl = ref(null) // items without a section, drag-only
+const orderEl = ref(null) // flat item order, reorderable
 let sortables = []
 
 async function refresh() {
@@ -44,6 +45,9 @@ function initDnD() {
     sortables.push(
       Sortable.create(board.value, { draggable: '.sec', handle: '.handle', animation: 150, onEnd: onSectionDrop }),
     )
+  }
+  if (orderEl.value) {
+    sortables.push(Sortable.create(orderEl.value, { handle: '.handle', animation: 150, onEnd: onOrderDrop }))
   }
   const zones = [...(board.value?.querySelectorAll('.chips') || []), ...(unplacedEl.value ? [unplacedEl.value] : [])]
   for (const el of zones) {
@@ -74,6 +78,21 @@ async function onSectionDrop(evt) {
   sections.value = names
   try {
     await save()
+  } catch (e) {
+    error.value = e.message
+  }
+}
+
+// Dragging in the flat list saves the whole list as the manual item order.
+async function onOrderDrop(evt) {
+  const names = [...orderEl.value.children].map((e) => e.dataset.item)
+  const from = evt.from
+  from.insertBefore(evt.item, evt.oldIndex < evt.newIndex ? from.children[evt.oldIndex] : from.children[evt.oldIndex + 1] ?? null)
+  if (names.join('|') === layout.value.items.join('|')) return
+  error.value = ''
+  try {
+    emit('updated', await api.updateStore(props.store.id, { itemOrder: names }))
+    layout.value = await api.layout(props.store.id)
   } catch (e) {
     error.value = e.message
   }
@@ -183,8 +202,12 @@ function adoptLearned() {
     </div>
     <details v-if="layout && layout.items.length" class="paste">
       <summary class="muted small">{{ t('itemOrder', layout.items.length) }}</summary>
-      <ol class="list numbered">
-        <li v-for="it in layout.items" :key="it">{{ it }}</li>
+      <p class="muted small">{{ t('orderHint') }}</p>
+      <ol ref="orderEl" class="list numbered">
+        <li v-for="it in layout.items" :key="it" :data-item="it">
+          <span class="handle" :title="t('dragSection')">⠿</span>
+          <span class="grow">{{ it }}</span>
+        </li>
       </ol>
     </details>
   </section>

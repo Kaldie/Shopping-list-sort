@@ -34,6 +34,11 @@ type Store struct {
 	UserPairs map[string]map[string]int `json:"userPairs"`
 	// Forks[user] is a user's personal section order.
 	Forks map[string][]string `json:"forks"`
+	// ItemOrder is a manual walking order of items (normalized names), set by
+	// dragging; it wins over the order learned from trips. UserItemOrder holds
+	// the personal version of anyone who is not editing the shared layout.
+	ItemOrder     []string            `json:"itemOrder,omitempty"`
+	UserItemOrder map[string][]string `json:"userItemOrder,omitempty"`
 	Trips int                 `json:"trips"`
 
 	// Pairs is the effective precedence data for the viewing user. It is
@@ -147,6 +152,9 @@ func initStore(s *Store) {
 	if s.Forks == nil {
 		s.Forks = map[string][]string{}
 	}
+	if s.UserItemOrder == nil {
+		s.UserItemOrder = map[string][]string{}
+	}
 }
 
 func (r *Repository) save() error {
@@ -193,6 +201,10 @@ func view(s *Store, user string) Store {
 		} else {
 			c.ItemSection[k] = v
 		}
+	}
+	c.ItemOrder = s.ItemOrder
+	if own, ok := s.UserItemOrder[user]; ok {
+		c.ItemOrder = own
 	}
 	if fork, ok := s.Forks[user]; ok {
 		c.Forked = true
@@ -309,6 +321,7 @@ func (r *Repository) Unfork(id, user string) (Store, error) {
 		return Store{}, ErrNotFound
 	}
 	delete(s.Forks, user)
+	delete(s.UserItemOrder, user)
 	return view(s, user), r.save()
 }
 
@@ -362,5 +375,32 @@ func (r *Repository) RecordTrip(id, user string, items []string) (Store, error) 
 	}
 	s.Trips++
 	r.d.Trips = append(r.d.Trips, Trip{StoreID: id, UserID: user, Items: norm, At: time.Now().UTC()})
+	return view(s, user), r.save()
+}
+
+// SetItemOrder stores a manual item order. The creator editing the shared
+// layout changes it for everyone; anyone else (or a forked route) keeps a
+// personal order.
+func (r *Repository) SetItemOrder(id, user string, order []string) (Store, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	s, ok := r.d.Stores[id]
+	if !ok {
+		return Store{}, ErrNotFound
+	}
+	clean := []string{}
+	seen := map[string]bool{}
+	for _, it := range order {
+		n := Normalize(it)
+		if n != "" && !seen[n] {
+			seen[n] = true
+			clean = append(clean, n)
+		}
+	}
+	if _, forked := s.Forks[user]; user == s.CreatedBy && !forked {
+		s.ItemOrder = clean
+	} else {
+		s.UserItemOrder[user] = clean
+	}
 	return view(s, user), r.save()
 }

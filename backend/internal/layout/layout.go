@@ -92,7 +92,7 @@ func SectionOf(s store.Store, item string) string {
 // Generate builds the layout: learned item order, and section positions that
 // blend the explicit order (prior) with the mean position of learned items.
 func Generate(s store.Store) Layout {
-	items := RankItems(KnownItems(s), s.Pairs)
+	items := applyOrder(RankItems(KnownItems(s), s.Pairs), s.ItemOrder)
 	itemPos := positions(items)
 	unplaced := []string{}
 
@@ -231,4 +231,30 @@ func norm(i, n int) float64 {
 		return 0.5
 	}
 	return float64(i) / float64(n-1)
+}
+
+// applyOrder puts items in the manual order first; items it does not mention
+// (new since the last drag) follow in their learned order.
+func applyOrder(items, manual []string) []string {
+	if len(manual) == 0 {
+		return items
+	}
+	have := make(map[string]bool, len(items))
+	for _, it := range items {
+		have[it] = true
+	}
+	out := make([]string, 0, len(items))
+	used := map[string]bool{}
+	for _, it := range manual {
+		if have[it] && !used[it] {
+			used[it] = true
+			out = append(out, it)
+		}
+	}
+	for _, it := range items {
+		if !used[it] {
+			out = append(out, it)
+		}
+	}
+	return out
 }

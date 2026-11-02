@@ -93,3 +93,22 @@ func TestOpenCleansOldItems(t *testing.T) {
 		t.Fatalf("got %v want %v", l.Items, want)
 	}
 }
+
+func TestSetItemOrderSharedAndPersonal(t *testing.T) {
+	r, _ := Open(filepath.Join(t.TempDir(), "d.json"))
+	s, _ := r.Create("AH", "alice", nil)
+	v, err := r.SetItemOrder(s.ID, "alice", []string{"Melk", "kaas", "melk"})
+	if err != nil || !reflect.DeepEqual(v.ItemOrder, []string{"melk", "kaas"}) {
+		t.Fatalf("creator: %v %v", v.ItemOrder, err)
+	}
+	if b, _ := r.Get(s.ID, "bob"); !reflect.DeepEqual(b.ItemOrder, []string{"melk", "kaas"}) {
+		t.Fatalf("bob should see shared order: %v", b.ItemOrder)
+	}
+	r.SetItemOrder(s.ID, "bob", []string{"kaas", "melk"})
+	if b, _ := r.Get(s.ID, "bob"); !reflect.DeepEqual(b.ItemOrder, []string{"kaas", "melk"}) {
+		t.Fatalf("bob personal: %v", b.ItemOrder)
+	}
+	if a, _ := r.Get(s.ID, "alice"); !reflect.DeepEqual(a.ItemOrder, []string{"melk", "kaas"}) {
+		t.Fatalf("alice must keep shared: %v", a.ItemOrder)
+	}
+}

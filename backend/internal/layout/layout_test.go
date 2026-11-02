@@ -72,3 +72,12 @@ func TestGuess(t *testing.T) {
 		}
 	}
 }
+
+func TestManualItemOrderWins(t *testing.T) {
+	s := newStore(t, nil, []string{"a", "b", "c"})
+	s.ItemOrder = []string{"c", "a"}
+	got := Generate(s).Items
+	if !reflect.DeepEqual(got, []string{"c", "a", "b"}) {
+		t.Fatalf("got %v", got)
+	}
+}

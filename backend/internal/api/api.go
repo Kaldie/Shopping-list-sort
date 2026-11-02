@@ -78,6 +78,7 @@ type storeReq struct {
 	Name        string            `json:"name"`
 	Sections    []string          `json:"sections"`
 	ItemSection map[string]string `json:"itemSection"`
+	ItemOrder   []string          `json:"itemOrder"`
 }
 
 type itemsReq struct {
@@ -116,6 +117,9 @@ func (s *Server) updateStore(w http.ResponseWriter, r *http.Request, u store.Use
 		secs = cleanLines(req.Sections)
 	}
 	st, err := s.repo.Update(r.PathValue("id"), u.ID, req.Name, secs, req.ItemSection)
+	if err == nil && req.ItemOrder != nil {
+		st, err = s.repo.SetItemOrder(r.PathValue("id"), u.ID, req.ItemOrder)
+	}
 	respond(w, http.StatusOK, st, err)
 }
 
