@@ -229,3 +229,5 @@ button:disabled { opacity: 0.5; cursor: default; }
 .dot:disabled { opacity: 0.3; }
 .legend { white-space: nowrap; font-weight: 600; }
 .dot-mini { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+
+.lang { padding: 4px 8px; font-size: 0.8rem; margin-right: 6px; }

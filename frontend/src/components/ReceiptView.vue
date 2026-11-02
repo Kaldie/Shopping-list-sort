@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { api } from '../api.js'
+import { t } from '../i18n.js'
 
 const props = defineProps({
   store: { type: Object, required: true },
@@ -27,7 +28,7 @@ onMounted(async () => {
 async function fromFile(e) {
   const f = e.target.files[0]
   if (!f) return
-  busy.value = f.type === 'application/pdf' ? 'Reading PDF…' : 'Reading receipt…'
+  busy.value = f.type === 'application/pdf' ? t('readingPdf') : t('readingReceipt')
   error.value = ''
   try {
     raw.value = (await api.ocr(f)).join('\n')
@@ -45,12 +46,12 @@ async function parse() {
   error.value = ''
   const matches = await api.parseReceipt(raw.value, forList.value)
   lines.value = matches.map((m) => ({ ...m, order: true, bought: true }))
-  if (!lines.value.length) error.value = 'No items found on this receipt.'
+  if (!lines.value.length) error.value = t('noItemsOnReceipt')
 }
 
 async function apply() {
   if (!bought.value.length) {
-    error.value = 'Nothing marked as bought.'
+    error.value = t('nothingBought')
     return
   }
   const res = await api.applyReceipt(
@@ -59,8 +60,7 @@ async function apply() {
     lines.value.map(({ item, order, bought }) => ({ item, order, bought })),
   )
   emit('updated', res.store)
-  done.value = `Saved ${bought.value.length} bought items` +
-    (ordered.value.length >= 2 ? ` and learned the route from ${ordered.value.length}.` : '.')
+  done.value = t('receiptSaved', bought.value.length, ordered.value.length)
   lines.value = []
   raw.value = ''
   if (forList.value) emit('list-done')
@@ -69,65 +69,51 @@ async function apply() {
 
 <template>
   <section>
-    <h2>Receipt</h2>
-    <p class="muted">
-      Self-scan receipts list items in the order you picked them. Upload the
-      PDF from the app, or a photo — it counts as bought and teaches the route.
-    </p>
+    <h2>{{ t('receipt') }}</h2>
     <label class="file">
-      🧾 Upload receipt (PDF or photo)
+      {{ t('uploadReceipt') }}
       <input type="file" accept="application/pdf,image/*" @change="fromFile" />
     </label>
     <details class="paste">
-      <summary class="muted small">…or paste the receipt text</summary>
+      <summary class="muted small">{{ t('pasteReceipt') }}</summary>
       <textarea v-model="raw" rows="6" placeholder="AH BANANEN   1,99&#10;AH HALFV MELK 1L   1,19" />
-      <button class="ghost" @click="parse">Read items</button>
+      <button class="ghost" @click="parse">{{ t('readItems') }}</button>
     </details>
     <label class="field">
-      <span class="small muted">Which list was this?</span>
+      <span class="small muted">{{ t('whichList') }}</span>
       <select v-model="forList" @change="raw && parse()">
-        <option v-for="l in openLists" :key="l.id" :value="l.id">{{ l.name }} · {{ l.items.length }} items</option>
-        <option value="">None — just record what I bought</option>
+        <option v-for="l in openLists" :key="l.id" :value="l.id">{{ l.name }} · {{ t('items', l.items.length) }}</option>
+        <option value="">{{ t('noList') }}</option>
       </select>
     </label>
     <p v-if="busy" class="muted">{{ busy }}</p>
     <p v-if="error" class="error">{{ error }}</p>
-    <p v-if="done" class="success">✓ {{ done }}</p>
+    <p v-if="done" class="success">{{ done }}</p>
   </section>
 
   <section v-if="lines.length">
-    <h2>Scan order <small class="muted">{{ bought.length }}/{{ lines.length }} bought</small></h2>
-    <p class="muted small">
-      <span class="legend"><span class="dot-mini" /> route</span> tap if you went back for it ·
-      <span class="legend">🛒 bought</span> tap if you didn't actually buy it.
-    </p>
+    <h2>{{ t('scanOrder') }} <small class="muted">{{ t('boughtCount', bought.length, lines.length) }}</small></h2>
+    <p class="muted small">{{ t('routeHint') }}</p>
     <ol class="list numbered">
       <li v-for="(l, i) in lines" :key="i" :class="{ excluded: !l.bought }">
         <button
           class="dot"
           :class="{ off: !l.order || !l.bought }"
           :disabled="!l.bought"
-          :title="l.order ? 'Used for the route — tap if you went back for it' : 'Not used for the route'"
           :aria-pressed="!l.order"
           @click="l.order = !l.order"
         />
         <span class="grow">
-          <input v-model="l.item" class="inline" :aria-label="`Item for ${l.line}`" />
+          <input v-model="l.item" class="inline" :aria-label="l.line" />
           <div class="muted small line">
-            {{ l.matched ? '↔' : '+' }} {{ l.line }}<template v-if="!l.matched && forList"> · not on list</template>
+            {{ l.line }}<template v-if="!l.matched && forList"> · {{ t('notOnList') }}</template>
           </div>
         </span>
-        <button
-          class="toggle"
-          :class="{ off: !l.bought }"
-          :title="l.bought ? 'Bought — tap if you didn\'t buy this' : 'Not bought'"
-          :aria-pressed="!l.bought"
-          @click="l.bought = !l.bought"
-        >
-          {{ l.bought ? '🛒' : '✕' }}
+        <button class="toggle" :class="{ off: !l.bought }" :aria-pressed="!l.bought" @click="l.bought = !l.bought">
+          {{ l.bought ? '✓' : '✕' }}
         </button>
       </li>
     </ol>
-    <button class="primary block" @click="apply">Save receipt</button>
+    <button class="primary block" @click="apply">{{ t('saveReceipt') }}</button>
   </section>
 </template>

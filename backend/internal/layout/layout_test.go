@@ -58,14 +58,14 @@ func TestGenerateLearnsSectionOrderWithoutExplicitLayout(t *testing.T) {
 	for _, sp := range l.Sections {
 		names = append(names, sp.Name)
 	}
-	want := []string{"Drinks", "Dairy", "Bakery"}
+	want := []string{"Dranken", "Zuivel", "Brood & gebak"}
 	if !reflect.DeepEqual(names, want) {
 		t.Fatalf("got %v want %v", names, want)
 	}
 }
 
 func TestGuess(t *testing.T) {
-	cases := map[string]string{"halfvolle melk": "Dairy", "bananas": "Produce", "toilet paper": "Household", "xyz": ""}
+	cases := map[string]string{"halfvolle melk": "Zuivel", "bananas": "Groente & fruit", "bananen": "Groente & fruit", "toilet paper": "Huishouden", "sinaasappelsap": "Dranken", "kruidenkaas": "Zuivel", "chocopasta": "Houdbaar", "appelmoes": "Houdbaar", "cherrytomaatjes": "Groente & fruit", "pindas": "Snacks", "ontbijtkoek": "Brood & gebak", "afbakworstenbroodjes": "Brood & gebak", "xyz": ""}
 	for in, want := range cases {
 		if got := Guess(in); got != want {
 			t.Errorf("Guess(%q)=%q want %q", in, got, want)

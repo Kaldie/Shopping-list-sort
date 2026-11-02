@@ -273,7 +273,7 @@ func (s *Server) ocr(w http.ResponseWriter, r *http.Request, _ store.User) {
 	} else {
 		lang := r.URL.Query().Get("lang")
 		if lang == "" {
-			lang = "eng"
+			lang = "nld+eng"
 		}
 		cmd = exec.CommandContext(r.Context(), bin, tmp.Name(), "stdout", "-l", lang)
 	}

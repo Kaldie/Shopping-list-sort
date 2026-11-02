@@ -1,8 +1,11 @@
 <script setup>
 import { ref } from 'vue'
-import { api, toLines } from '../api.js'
+import { api, toLines, parseItem, mergeItems } from '../api.js'
+import { t } from '../i18n.js'
 
 // Editable list of { name, qty }. Emits 'change' with the new array.
+// Everything typed, pasted or scanned goes through parseItem: alphanumeric
+// names only, "2 melk" becomes a count, repeats merge into one counter.
 const props = defineProps({
   items: { type: Array, required: true },
   suggestions: { type: Array, default: () => [] }, // item names for autocomplete
@@ -10,19 +13,17 @@ const props = defineProps({
 const emit = defineEmits(['change'])
 
 const newName = ref('')
-const newQty = ref(1)
 const busy = ref('')
 const error = ref('')
 const pasted = ref('')
+const pasteOpen = ref(false)
 
-const update = (items) => emit('change', items)
+const update = (items) => emit('change', mergeItems(items))
+const addLines = (lines) => update([...props.items, ...lines.map(parseItem)])
 
 function add() {
-  const name = newName.value.trim()
-  if (!name) return
-  update([...props.items, { name, qty: newQty.value || 1 }])
+  addLines([newName.value])
   newName.value = ''
-  newQty.value = 1
 }
 
 function setQty(i, qty) {
@@ -31,30 +32,33 @@ function setQty(i, qty) {
 }
 
 function rename(i, name) {
-  update(props.items.map((it, j) => (j === i ? { ...it, name } : it)))
+  const p = parseItem(name)
+  if (!p) return remove(i)
+  update(props.items.map((it, j) => (j === i ? { name: p.name, qty: it.qty * p.qty } : it)))
 }
 
 function remove(i) {
   update(props.items.filter((_, j) => j !== i))
 }
 
-// Pasted text → one item per non-empty line.
 function addPasted() {
-  const lines = toLines(pasted.value)
-  if (!lines.length) return
-  update([...props.items, ...lines.map((name) => ({ name, qty: 1 }))])
+  addLines(toLines(pasted.value))
   pasted.value = ''
+  pasteOpen.value = false
 }
 
-// Handwritten / printed list photo → one item per recognised line.
+// Photo of a list → recognised lines land in the paste box, so OCR mistakes
+// can be fixed before they become items.
 async function scan(e) {
   const f = e.target.files[0]
   if (!f) return
-  busy.value = 'Reading list…'
+  busy.value = t('readingList')
   error.value = ''
   try {
     const lines = await api.ocr(f)
-    update([...props.items, ...lines.map((name) => ({ name, qty: 1 }))])
+    if (!lines.length) throw new Error(t('nothingRecognised'))
+    pasted.value = [...toLines(pasted.value), ...lines].join('\n')
+    pasteOpen.value = true
   } catch (err) {
     error.value = err.message
   } finally {
@@ -66,32 +70,31 @@ async function scan(e) {
 
 <template>
   <ul class="list items">
-    <li v-for="(it, i) in items" :key="i">
+    <li v-for="(it, i) in items" :key="it.name">
       <input class="inline grow" :value="it.name" @change="rename(i, $event.target.value)" />
       <span class="stepper">
-        <button class="ghost" :aria-label="`Less ${it.name}`" @click="setQty(i, it.qty - 1)">−</button>
+        <button class="ghost" :aria-label="t('less', it.name)" @click="setQty(i, it.qty - 1)">−</button>
         <span class="qty">{{ it.qty }}</span>
-        <button class="ghost" :aria-label="`More ${it.name}`" @click="setQty(i, it.qty + 1)">+</button>
+        <button class="ghost" :aria-label="t('more', it.name)" @click="setQty(i, it.qty + 1)">+</button>
       </span>
     </li>
-    <li v-if="!items.length" class="muted">No items yet.</li>
+    <li v-if="!items.length" class="muted">{{ t('noItems') }}</li>
   </ul>
   <form class="row" @submit.prevent="add">
-    <input v-model="newName" list="item-suggestions" placeholder="Add item…" autocomplete="off" />
-    <input v-model.number="newQty" type="number" min="1" class="qty-input" aria-label="Quantity" />
-    <button>Add</button>
+    <input v-model="newName" list="item-suggestions" :placeholder="t('addItem')" autocomplete="off" />
+    <button>{{ t('add') }}</button>
   </form>
   <datalist id="item-suggestions">
     <option v-for="s in suggestions" :key="s" :value="s" />
   </datalist>
   <label class="file">
-    📷 Scan handwritten list
+    {{ t('scanList') }}
     <input type="file" accept="image/*" capture="environment" @change="scan" />
   </label>
-  <details class="paste">
-    <summary class="muted small">…or paste a list (one item per line)</summary>
-    <textarea v-model="pasted" rows="6" placeholder="Bananen&#10;Melk&#10;Brood" />
-    <button class="ghost" @click="addPasted">Add items</button>
+  <details class="paste" :open="pasteOpen" @toggle="pasteOpen = $event.target.open">
+    <summary class="muted small">{{ t('pasteList') }}</summary>
+    <textarea v-model="pasted" rows="6" placeholder="Bananen&#10;2 Melk&#10;Brood" />
+    <button class="ghost" @click="addPasted">{{ t('addItems') }}</button>
   </details>
   <p v-if="busy" class="muted">{{ busy }}</p>
   <p v-if="error" class="error">{{ error }}</p>

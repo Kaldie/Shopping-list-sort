@@ -27,7 +27,7 @@ type Group struct {
 	Items   []string `json:"items"`
 }
 
-const unsorted = "Unsorted"
+const unsorted = "Overig"
 
 // RankItems orders items by a Copeland score over observed pairwise
 // precedences: each pair contributes the net fraction of trips in which one
@@ -77,7 +77,14 @@ func SectionOf(s store.Store, item string) string {
 	if sec, ok := s.ItemSection[n]; ok {
 		return sec
 	}
-	return Guess(n)
+	g := Guess(n)
+	// Prefer the store's own spelling of the section (Dutch or older English).
+	for _, sec := range s.Sections {
+		if strings.EqualFold(sec, g) || (g != "" && strings.EqualFold(sec, english[g])) {
+			return sec
+		}
+	}
+	return g
 }
 
 // Generate builds the layout: learned item order, and section positions that
@@ -154,7 +161,7 @@ func Generate(s store.Store) Layout {
 
 // Sort orders a shopping list for the store and groups it by section.
 // Items seen on trips use their learned position; otherwise the section's
-// position; unknown items go last under "Unsorted".
+// position; unknown items go last under "Overig".
 func Sort(s store.Store, list []string) []Group {
 	l := Generate(s)
 	itemPos := positions(l.Items)

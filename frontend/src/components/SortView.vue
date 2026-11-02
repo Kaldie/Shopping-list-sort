@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { api } from '../api.js'
+import { t } from '../i18n.js'
 
 const props = defineProps({
   store: { type: Object, required: true },
@@ -39,12 +40,13 @@ function toggle(item) {
 
 // The check-off order is an observed walk through the store: record it as a
 // trip, and complete the list with what was actually bought (for statistics).
+// An item with a count is struck once, whatever the quantity.
 async function finish() {
   if (!picked.value.length) {
-    error.value = 'Tick off what you bought first.'
+    error.value = t('tickFirst')
     return
   }
-  if (picked.value.length < total.value && !confirm('Not everything is ticked. Finish anyway?')) return
+  if (picked.value.length < total.value && !confirm(t('notAllTicked'))) return
   if (picked.value.length >= 2) emit('updated', await api.trip(props.store.id, picked.value))
   await api.completeList(list.value.id, picked.value.map((name) => ({ name, qty: qty.value[name] || 1 })))
   emit('list-done')
@@ -55,31 +57,26 @@ async function finish() {
   <section v-if="!listId || !list">
     <p v-if="error" class="error">{{ error }}</p>
     <div class="empty">
-      <div class="empty-icon">📝</div>
-      <p>No list selected.</p>
-      <button @click="emit('edit-list')">Make a list</button>
+      <p>{{ t('noListSelected') }}</p>
+      <button @click="emit('edit-list')">{{ t('makeList') }}</button>
     </div>
   </section>
 
   <section v-else>
     <h2>
       <span class="grow">{{ list.name }} <small class="muted">{{ picked.length }}/{{ total }}</small></span>
-      <button class="ghost" @click="emit('edit-list')">Edit</button>
+      <button class="ghost" @click="emit('edit-list')">{{ t('edit') }}</button>
     </h2>
     <div class="progress"><div :style="{ width: total ? (100 * picked.length) / total + '%' : 0 }" /></div>
-    <p class="muted small">
-      Sorted for {{ store.name }}. Tick items off as you put them in your cart —
-      the order you tick them teaches the app this store's layout.
-    </p>
     <p v-if="error" class="error">{{ error }}</p>
     <div v-for="g in groups" :key="g.section" class="group">
-      <h3>{{ g.section }} <span class="count">{{ g.items.length }}</span></h3>
+      <h3>{{ g.section }}</h3>
       <label v-for="item in g.items" :key="item" class="check" :class="{ done: picked.includes(item) }">
         <input type="checkbox" :checked="picked.includes(item)" @change="toggle(item)" />
         <span class="grow">{{ item }}</span>
-        <span v-if="qty[item] > 1" class="count">× {{ qty[item] }}</span>
+        <span v-if="qty[item] > 1" class="count">{{ qty[item] }}×</span>
       </label>
     </div>
-    <button class="primary block sticky-action" @click="finish">Finish trip &amp; learn</button>
+    <button class="primary block sticky-action" @click="finish">{{ t('finish') }}</button>
   </section>
 </template>

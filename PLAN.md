@@ -71,7 +71,7 @@ For each list item, in priority order:
    list items).
 2. Item has a known section (learned, or keyword dictionary) → section's
    position.
-3. Unknown → end of list, under "Unsorted"; when the user checks it off on
+3. Unknown → end of list, under "Overig"; when the user checks it off on
    a trip, it gets learned.
 
 Items are returned grouped by section.
