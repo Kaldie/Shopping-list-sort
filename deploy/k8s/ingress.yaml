@@ -1,8 +1,6 @@
-# Traefik ingress: HTTPS on the websecure entrypoint. Adjust the host, and
-# pick ONE way to get a certificate:
-#  - cert-manager: keep the cert-manager annotation and the tls.secretName.
-#  - Traefik's own ACME resolver: remove the cert-manager annotation and the
-#    secretName, and add  traefik.ingress.kubernetes.io/router.tls.certresolver: <resolver>
+# Traefik ingress: HTTPS on the websecure entrypoint. The wildcard cert for
+# *.kaldie.duckdns.org comes from Traefik's duckdns resolver, see
+# deploy/k8s-cluster/traefik-config.yaml.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -10,14 +8,13 @@ metadata:
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
-    cert-manager.io/cluster-issuer: letsencrypt
+    traefik.ingress.kubernetes.io/router.tls.certresolver: duckdns
+    traefik.ingress.kubernetes.io/router.tls.domains.0.main: kaldie.duckdns.org
+    traefik.ingress.kubernetes.io/router.tls.domains.0.sans: "*.kaldie.duckdns.org"
 spec:
   ingressClassName: traefik
-  tls:
-    - hosts: [shop.example.nl]
-      secretName: app-tls
   rules:
-    - host: shop.example.nl
+    - host: shop.kaldie.duckdns.org
       http:
         paths:
           - path: /

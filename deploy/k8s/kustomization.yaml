@@ -14,9 +14,9 @@ resources:
 configMapGenerator:
   - name: app-config
     literals:
-      - GOOGLE_CLIENT_ID=REPLACE_ME.apps.googleusercontent.com
+      - GOOGLE_CLIENT_ID=207143647732-hjil6g7k342b13f8u7p0ke9c3c20l50n.apps.googleusercontent.com
       - SECURE_COOKIES=true
 images:
   - name: shopping-list-sort
-    newName: ghcr.io/kaldie/shopping-list-sort # push your image here
+    newName: localhost:5000/shopping-list-sort # in-cluster registry, see deploy/registry (or ghcr.io/kaldie/shopping-list-sort)
     newTag: latest

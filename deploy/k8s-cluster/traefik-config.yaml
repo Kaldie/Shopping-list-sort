@@ -1,0 +1,45 @@
+# k3s picks this up and reconfigures its bundled Traefik (restarts it briefly).
+# Wildcard cert for *.kaldie.duckdns.org via Let's Encrypt DNS-01 + DuckDNS, so
+# any app can be exposed as <app>.kaldie.duckdns.org with no per-host cert setup
+# and without opening any port for issuance.
+#
+# Needs the secret (create it yourself, the token stays out of git):
+#   kubectl -n kube-system create secret generic duckdns-token \
+#     --from-literal=DUCKDNS_TOKEN='<token>'
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    env:
+      - name: DUCKDNS_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: duckdns-token
+            key: DUCKDNS_TOKEN
+    persistence:
+      enabled: true
+      size: 128Mi
+    certificatesResolvers:
+      duckdns:
+        acme:
+          storage: /data/acme.json
+          dnsChallenge:
+            provider: duckdns
+            propagation:
+              delayBeforeChecks: 30
+            resolvers:
+              - 1.1.1.1:53
+              - 8.8.8.8:53
+    ports:
+      websecure:
+        http:
+          tls:
+            enabled: true
+            certResolver: duckdns
+            domains:
+              - main: kaldie.duckdns.org
+                sans:
+                  - "*.kaldie.duckdns.org"
