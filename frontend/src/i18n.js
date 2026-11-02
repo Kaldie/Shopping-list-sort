@@ -46,12 +46,10 @@ const messages = {
     deleteTemplate: 'Sjabloon verwijderen',
     deleteTemplateConfirm: (n) => `Sjabloon "${n}" verwijderen?`,
     noItems: 'Nog niets op de lijst.',
-    addItem: 'Voeg toe…',
+    addItem: 'Typ een item of plak een lijst…',
     qty: 'Aantal',
     less: (n) => `Minder ${n}`,
     more: (n) => `Meer ${n}`,
-    pastePlaceholder: 'Plak je lijst, één item per regel',
-    addItems: 'Items toevoegen',
 
     // shop
     noListSelected: 'Geen lijst gekozen.',
@@ -150,12 +148,10 @@ const messages = {
     deleteTemplate: 'Delete template',
     deleteTemplateConfirm: (n) => `Delete template "${n}"?`,
     noItems: 'Nothing on the list yet.',
-    addItem: 'Add item…',
+    addItem: 'Type an item or paste a list…',
     qty: 'Quantity',
     less: (n) => `Less ${n}`,
     more: (n) => `More ${n}`,
-    pastePlaceholder: 'Paste your list, one item per line',
-    addItems: 'Add items',
 
     noListSelected: 'No list selected.',
     makeList: 'Make a list',

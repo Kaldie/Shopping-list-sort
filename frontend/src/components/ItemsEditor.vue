@@ -13,14 +13,21 @@ const props = defineProps({
 const emit = defineEmits(['change'])
 
 const newName = ref('')
-const pasted = ref('')
 
 const update = (items) => emit('change', mergeItems(items))
 const addLines = (lines) => update([...props.items, ...lines.map(parseItem)])
 
 function add() {
-  addLines([newName.value])
+  addLines(toLines(newName.value))
   newName.value = ''
+}
+
+// Pasting several lines adds them all at once; one line is typed as usual.
+function onPaste(e) {
+  const text = e.clipboardData?.getData('text') || ''
+  if (toLines(text).length < 2) return
+  e.preventDefault()
+  addLines(toLines(text))
 }
 
 function setQty(i, qty) {
@@ -38,11 +45,6 @@ function remove(i) {
   update(props.items.filter((_, j) => j !== i))
 }
 
-function addPasted() {
-  addLines(toLines(pasted.value))
-  pasted.value = ''
-}
-
 </script>
 
 <template>
@@ -58,14 +60,10 @@ function addPasted() {
     <li v-if="!items.length" class="muted">{{ t('noItems') }}</li>
   </ul>
   <form class="row" @submit.prevent="add">
-    <input v-model="newName" list="item-suggestions" :placeholder="t('addItem')" autocomplete="off" />
+    <input v-model="newName" list="item-suggestions" @paste="onPaste" :placeholder="t('addItem')" autocomplete="off" />
     <button>{{ t('add') }}</button>
   </form>
   <datalist id="item-suggestions">
     <option v-for="s in suggestions" :key="s" :value="s" />
   </datalist>
-  <div class="paste">
-    <textarea v-model="pasted" rows="1" :placeholder="t('pastePlaceholder')" />
-    <button v-if="pasted.trim()" class="primary block" @click="addPasted">{{ t('addItems') }}</button>
-  </div>
 </template>
