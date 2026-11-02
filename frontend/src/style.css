@@ -241,3 +241,14 @@ button:disabled { opacity: 0.5; cursor: default; }
 @keyframes fresh { from { background: color-mix(in srgb, var(--accent, #2a7) 30%, transparent); } to { background: transparent; } }
 .items li.seen { animation: seen 2.5s ease-out; }
 @keyframes seen { from { background: color-mix(in srgb, currentColor 14%, transparent); } to { background: transparent; } }
+
+/* Layout board: section cards with draggable item chips */
+.board { display: grid; gap: 8px; margin: 8px 0; }
+.sec { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; background: var(--card); }
+.sec.unplaced { border-style: dashed; margin-top: 8px; }
+.sec-head { display: flex; align-items: center; gap: 8px; }
+.handle { cursor: grab; touch-action: none; padding: 4px 8px; color: var(--muted); user-select: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 36px; margin-top: 6px; padding: 2px; border-radius: 8px; }
+.chip { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--accent-soft); color: var(--fg); cursor: grab; user-select: none; }
+.sortable-ghost { opacity: 0.4; }
+.sortable-chosen.chip { box-shadow: var(--shadow); }

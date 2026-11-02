@@ -13,6 +13,8 @@ import (
 type Layout struct {
 	Sections []SectionPos `json:"sections"`
 	Items    []string     `json:"items"` // learned item walking order
+	// Unplaced are learned items that no section was assigned or guessed for.
+	Unplaced []string `json:"unplaced"`
 }
 
 type SectionPos struct {
@@ -92,6 +94,7 @@ func SectionOf(s store.Store, item string) string {
 func Generate(s store.Store) Layout {
 	items := RankItems(KnownItems(s), s.Pairs)
 	itemPos := positions(items)
+	unplaced := []string{}
 
 	type acc struct {
 		sum      float64
@@ -120,6 +123,7 @@ func Generate(s store.Store) Layout {
 	for _, it := range items {
 		sec := SectionOf(s, it)
 		if sec == "" {
+			unplaced = append(unplaced, it)
 			continue
 		}
 		if _, ok := names[strings.ToLower(sec)]; !ok {
@@ -131,7 +135,7 @@ func Generate(s store.Store) Layout {
 		a.items = append(a.items, it)
 	}
 
-	l := Layout{Items: items}
+	l := Layout{Items: items, Unplaced: unplaced}
 	for key, a := range secs {
 		sp := SectionPos{Name: names[key], Items: a.items}
 		switch {
