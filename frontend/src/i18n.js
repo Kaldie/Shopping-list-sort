@@ -50,10 +50,7 @@ const messages = {
     qty: 'Aantal',
     less: (n) => `Minder ${n}`,
     more: (n) => `Meer ${n}`,
-    scanList: 'Foto van lijst lezen',
-    readingList: 'Lijst lezen…',
-    nothingRecognised: 'Geen tekst herkend. Probeer een scherpere foto of typ de lijst.',
-    pasteList: 'Of plak een lijst (één item per regel)',
+    pastePlaceholder: 'Plak je lijst, één item per regel',
     addItems: 'Items toevoegen',
 
     // shop
@@ -157,10 +154,7 @@ const messages = {
     qty: 'Quantity',
     less: (n) => `Less ${n}`,
     more: (n) => `More ${n}`,
-    scanList: 'Read a photo of a list',
-    readingList: 'Reading list…',
-    nothingRecognised: 'No text recognised. Try a sharper photo or type the list.',
-    pasteList: 'Or paste a list (one item per line)',
+    pastePlaceholder: 'Paste your list, one item per line',
     addItems: 'Add items',
 
     noListSelected: 'No list selected.',

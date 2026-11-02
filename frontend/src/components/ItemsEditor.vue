@@ -1,10 +1,10 @@
 <script setup>
 import { ref } from 'vue'
-import { api, toLines, parseItem, mergeItems } from '../api.js'
+import { toLines, parseItem, mergeItems } from '../api.js'
 import { t } from '../i18n.js'
 
 // Editable list of { name, qty }. Emits 'change' with the new array.
-// Everything typed, pasted or scanned goes through parseItem: alphanumeric
+// Everything typed or pasted goes through parseItem: alphanumeric
 // names only, "2 melk" becomes a count, repeats merge into one counter.
 const props = defineProps({
   items: { type: Array, required: true },
@@ -13,10 +13,7 @@ const props = defineProps({
 const emit = defineEmits(['change'])
 
 const newName = ref('')
-const busy = ref('')
-const error = ref('')
 const pasted = ref('')
-const pasteOpen = ref(false)
 
 const update = (items) => emit('change', mergeItems(items))
 const addLines = (lines) => update([...props.items, ...lines.map(parseItem)])
@@ -44,28 +41,8 @@ function remove(i) {
 function addPasted() {
   addLines(toLines(pasted.value))
   pasted.value = ''
-  pasteOpen.value = false
 }
 
-// Photo of a list → recognised lines land in the paste box, so OCR mistakes
-// can be fixed before they become items.
-async function scan(e) {
-  const f = e.target.files[0]
-  if (!f) return
-  busy.value = t('readingList')
-  error.value = ''
-  try {
-    const lines = await api.ocr(f)
-    if (!lines.length) throw new Error(t('nothingRecognised'))
-    pasted.value = [...toLines(pasted.value), ...lines].join('\n')
-    pasteOpen.value = true
-  } catch (err) {
-    error.value = err.message
-  } finally {
-    busy.value = ''
-    e.target.value = ''
-  }
-}
 </script>
 
 <template>
@@ -87,15 +64,8 @@ async function scan(e) {
   <datalist id="item-suggestions">
     <option v-for="s in suggestions" :key="s" :value="s" />
   </datalist>
-  <label class="file">
-    {{ t('scanList') }}
-    <input type="file" accept="image/*" capture="environment" @change="scan" />
-  </label>
-  <details class="paste" :open="pasteOpen" @toggle="pasteOpen = $event.target.open">
-    <summary class="muted small">{{ t('pasteList') }}</summary>
-    <textarea v-model="pasted" rows="6" placeholder="Bananen&#10;2 Melk&#10;Brood" />
-    <button class="ghost" @click="addPasted">{{ t('addItems') }}</button>
-  </details>
-  <p v-if="busy" class="muted">{{ busy }}</p>
-  <p v-if="error" class="error">{{ error }}</p>
+  <div class="paste">
+    <textarea v-model="pasted" rows="6" :placeholder="t('pastePlaceholder')" />
+    <button class="primary block" :disabled="!pasted.trim()" @click="addPasted">{{ t('addItems') }}</button>
+  </div>
 </template>
