@@ -57,6 +57,7 @@ const messages = {
     noListSelected: 'Geen lijst gekozen.',
     makeList: 'Maak een lijst',
     finish: 'Klaar met winkelen',
+    showSections: 'Afdelingen tonen',
     tickFirst: 'Vink eerst af wat je hebt gekocht.',
     notAllTicked: 'Niet alles is afgevinkt. Toch afronden?',
 
@@ -160,6 +161,7 @@ const messages = {
     noListSelected: 'No list selected.',
     makeList: 'Make a list',
     finish: 'Finish shopping',
+    showSections: 'Show sections',
     tickFirst: 'Tick off what you bought first.',
     notAllTicked: 'Not everything is ticked. Finish anyway?',
 

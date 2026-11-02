@@ -15,7 +15,10 @@ const picked = ref([]) // item names in the order they were checked off
 const error = ref('')
 
 const qty = computed(() => Object.fromEntries((list.value?.items || []).map((i) => [i.name, i.qty])))
-// The server groups by section; the shop screen shows one plain list in walking order.
+// Section headings are optional; the default is one plain list in walking order.
+const showSections = ref(localStorage.getItem('showSections') === '1')
+watch(showSections, (v) => localStorage.setItem('showSections', v ? '1' : '0'))
+
 const flat = computed(() => groups.value.flatMap((g) => g.items))
 const total = computed(() => flat.value.length)
 
@@ -71,8 +74,12 @@ async function finish() {
     </h2>
     <div class="progress"><div :style="{ width: total ? (100 * picked.length) / total + '%' : 0 }" /></div>
     <p v-if="error" class="error">{{ error }}</p>
-    <div class="group">
-      <label v-for="item in flat" :key="item" class="check" :class="{ done: picked.includes(item) }">
+    <label class="muted small">
+      <input v-model="showSections" type="checkbox" /> {{ t('showSections') }}
+    </label>
+    <div v-for="g in groups" :key="g.section" class="group">
+      <h3 v-if="showSections">{{ g.section }}</h3>
+      <label v-for="item in g.items" :key="item" class="check" :class="{ done: picked.includes(item) }">
         <input type="checkbox" :checked="picked.includes(item)" @change="toggle(item)" />
         <span class="grow">{{ item }}</span>
         <span v-if="qty[item] > 1" class="count">{{ qty[item] }}×</span>
