@@ -26,6 +26,9 @@ type Store struct {
 	Sections  []string `json:"sections"` // public explicit order, may be empty
 	// ItemSection maps a normalized item name to a section name.
 	ItemSection map[string]string `json:"itemSection"`
+	// UserItemSection[user] holds a non-creator's personal item→section
+	// overrides on top of ItemSection ("" hides the shared assignment).
+	UserItemSection map[string]map[string]string `json:"userItemSection,omitempty"`
 	// UserPairs[user]["a|b"] counts that user's trips where a was picked before b.
 	UserPairs map[string]map[string]int `json:"userPairs"`
 	// Forks[user] is a user's personal section order.
@@ -108,6 +111,9 @@ func initStore(s *Store) {
 	if s.ItemSection == nil {
 		s.ItemSection = map[string]string{}
 	}
+	if s.UserItemSection == nil {
+		s.UserItemSection = map[string]map[string]string{}
+	}
 	if s.UserPairs == nil {
 		s.UserPairs = map[string]map[string]int{}
 	}
@@ -146,6 +152,13 @@ func view(s *Store, user string) Store {
 	}
 	for k, v := range s.ItemSection {
 		c.ItemSection[k] = v
+	}
+	for k, v := range s.UserItemSection[user] {
+		if v == "" {
+			delete(c.ItemSection, k)
+		} else {
+			c.ItemSection[k] = v
+		}
 	}
 	if fork, ok := s.Forks[user]; ok {
 		c.Forked = true
@@ -216,11 +229,24 @@ func (r *Repository) Update(id, user, name string, sections []string, itemSectio
 			s.Forks[user] = sections
 		}
 	}
-	for k, v := range itemSection {
-		if v == "" {
-			delete(s.ItemSection, Normalize(k))
-		} else {
-			s.ItemSection[Normalize(k)] = v
+	// Only the creator edits the shared item→section map; anyone else's
+	// changes are personal overrides, so they cannot vandalize the store.
+	if user == s.CreatedBy {
+		for k, v := range itemSection {
+			if v == "" {
+				delete(s.ItemSection, Normalize(k))
+			} else {
+				s.ItemSection[Normalize(k)] = v
+			}
+		}
+	} else if len(itemSection) > 0 {
+		own := s.UserItemSection[user]
+		if own == nil {
+			own = map[string]string{}
+			s.UserItemSection[user] = own
+		}
+		for k, v := range itemSection {
+			own[Normalize(k)] = v
 		}
 	}
 	return view(s, user), r.save()

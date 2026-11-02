@@ -10,14 +10,14 @@ See [PLAN.md](PLAN.md) for the design and algorithm.
 ## Develop
 
 ```
-cd backend && go run ./cmd/server          # http://localhost:8080 (dev login, no Google)
+cd backend && DEV_LOGIN=true go run ./cmd/server   # http://localhost:8080 (dev login, no Google)
 cd frontend && npm install && npm run dev  # http://localhost:5173
 ```
 
 ## Run locally with Docker Compose (Caddy + app)
 
 ```
-cp .env.example .env          # optional: GOOGLE_CLIENT_ID, SITE_ADDRESS
+cp .env.example .env          # set GOOGLE_CLIENT_ID (or DEV_LOGIN=true), SITE_ADDRESS
 docker compose up -d --build
 ```
 
@@ -41,7 +41,7 @@ data in the `app-data` volume).
    SITE_ADDRESS=yourname.duckdns.org
    DUCKDNS_SUBDOMAIN=yourname
    DUCKDNS_TOKEN=<token>
-   GOOGLE_CLIENT_ID=<client id>   # required when exposed: otherwise anyone can use the dev login
+   GOOGLE_CLIENT_ID=<client id>   # required: the server will not start without it (unless DEV_LOGIN=true)
    ```
 5. `docker compose --profile duckdns up -d --build`
 6. Check: `docker compose logs duckdns` should say `OK`, and `docker compose logs caddy`
@@ -74,5 +74,6 @@ kubectl apply -k deploy/k8s
    (add `https://localhost` and `http://localhost:5173` for development).
 3. Put the client ID in `GOOGLE_CLIENT_ID`. No client secret is needed.
 
-Without `GOOGLE_CLIENT_ID` the server runs a name-only dev login: never expose
-that to the internet.
+Without `GOOGLE_CLIENT_ID` the server refuses to start, unless you set
+`DEV_LOGIN=true` to get a name-only dev login (anyone can sign in as anyone):
+only for local development, never expose that to the internet.

@@ -2,13 +2,17 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/kaldie/shopping-list-sort/backend/internal/auth"
 	"github.com/kaldie/shopping-list-sort/backend/internal/layout"
@@ -21,16 +25,28 @@ type Config struct {
 	GoogleClientID string
 	// SecureCookies sets the Secure flag (serve over HTTPS in production).
 	SecureCookies bool
+	// DevLogin enables unverified name-only login when GoogleClientID is
+	// empty. Never enable it on a server reachable by others.
+	DevLogin bool
 }
 
 type Server struct {
 	repo     *store.Repository
 	cfg      Config
 	verifier *auth.Verifier
+	ocrSlots chan struct{} // limits concurrent OCR processes server-wide
 }
 
+const (
+	maxConcurrentOCR = 2
+	ocrTimeout       = 60 * time.Second
+)
+
+// ocrLang allows tesseract language codes like "eng" or "nld+eng".
+var ocrLang = regexp.MustCompile(`^[a-z_]{3,20}(\+[a-z_]{3,20}){0,3}$`)
+
 func New(repo *store.Repository, cfg Config) http.Handler {
-	s := &Server{repo: repo, cfg: cfg}
+	s := &Server{repo: repo, cfg: cfg, ocrSlots: make(chan struct{}, maxConcurrentOCR)}
 	if cfg.GoogleClientID != "" {
 		s.verifier = auth.NewVerifier(cfg.GoogleClientID)
 	}
@@ -236,6 +252,24 @@ func (s *Server) applyReceipt(w http.ResponseWriter, r *http.Request, u store.Us
 // ocr accepts a multipart "image" (photo or PDF) and returns its text lines.
 // Photos need tesseract, PDFs (digital receipts) need pdftotext.
 func (s *Server) ocr(w http.ResponseWriter, r *http.Request, _ store.User) {
+	lang := r.URL.Query().Get("lang")
+	if lang == "" {
+		lang = "eng"
+	}
+	if !ocrLang.MatchString(lang) {
+		httpError(w, http.StatusBadRequest, "invalid lang")
+		return
+	}
+	select {
+	case s.ocrSlots <- struct{}{}:
+		defer func() { <-s.ocrSlots }()
+	default:
+		w.Header().Set("Retry-After", "5")
+		httpError(w, http.StatusTooManyRequests, "server busy reading other receipts, try again shortly")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), ocrTimeout)
+	defer cancel()
 	r.Body = http.MaxBytesReader(w, r.Body, 20<<20)
 	f, hdr, err := r.FormFile("image")
 	if err != nil {
@@ -257,29 +291,27 @@ func (s *Server) ocr(w http.ResponseWriter, r *http.Request, _ store.User) {
 	}
 	tmp, err := os.CreateTemp("", "ocr-*")
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+		log.Printf("ocr: temp file: %v", err)
+		httpError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	defer os.Remove(tmp.Name())
 	_, err = io.Copy(tmp, io.MultiReader(strings.NewReader(string(head[:n])), f))
 	tmp.Close()
 	if err != nil {
-		httpError(w, http.StatusBadRequest, err.Error())
+		httpError(w, http.StatusBadRequest, "upload failed")
 		return
 	}
 	var cmd *exec.Cmd
 	if isPDF {
-		cmd = exec.CommandContext(r.Context(), bin, "-layout", tmp.Name(), "-")
+		cmd = exec.CommandContext(ctx, bin, "-layout", tmp.Name(), "-")
 	} else {
-		lang := r.URL.Query().Get("lang")
-		if lang == "" {
-			lang = "eng"
-		}
-		cmd = exec.CommandContext(r.Context(), bin, tmp.Name(), "stdout", "-l", lang)
+		cmd = exec.CommandContext(ctx, bin, tmp.Name(), "stdout", "-l", lang)
 	}
 	out, err := cmd.Output()
 	if err != nil {
-		httpError(w, http.StatusUnprocessableEntity, "reading failed: "+err.Error())
+		log.Printf("ocr: %s: %v", tool, err)
+		httpError(w, http.StatusUnprocessableEntity, "could not read the file")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"lines": cleanLines(strings.Split(string(out), "\n"))})
@@ -311,7 +343,8 @@ func respond(w http.ResponseWriter, status int, v any, err error) {
 	case errors.Is(err, store.ErrForbidden):
 		httpError(w, http.StatusForbidden, "not allowed")
 	case err != nil:
-		httpError(w, http.StatusInternalServerError, err.Error())
+		log.Printf("api: %v", err)
+		httpError(w, http.StatusInternalServerError, "internal error")
 	default:
 		writeJSON(w, status, v)
 	}

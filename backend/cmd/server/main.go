@@ -25,9 +25,13 @@ func main() {
 	cfg := api.Config{
 		GoogleClientID: os.Getenv("GOOGLE_CLIENT_ID"),
 		SecureCookies:  os.Getenv("SECURE_COOKIES") == "true",
+		DevLogin:       os.Getenv("DEV_LOGIN") == "true",
 	}
 	if cfg.GoogleClientID == "" {
-		log.Print("GOOGLE_CLIENT_ID not set: using unauthenticated dev login")
+		if !cfg.DevLogin {
+			log.Fatal("GOOGLE_CLIENT_ID not set: configure Google Sign-In, or set DEV_LOGIN=true for local development only")
+		}
+		log.Print("WARNING: DEV_LOGIN=true: anyone can sign in as any name without a password")
 	}
 
 	mux := http.NewServeMux()
