@@ -77,6 +77,7 @@ const messages = {
     routeHint: 'Stip: telt mee voor de route. Kruisje: niet gekocht.',
     notOnList: 'niet op lijst',
     saveReceipt: 'Bon opslaan',
+    outOfDate: 'Deze pagina is verouderd (supermarkt of lijst bestaat niet meer). Ververs de pagina.',
     receiptSaved: (n, m) => `${n} gekocht opgeslagen` + (m >= 2 ? `, route geleerd uit ${m}.` : '.'),
 
     // layout
@@ -180,6 +181,7 @@ const messages = {
     routeHint: 'Dot: counts for the route. Cross: not bought.',
     notOnList: 'not on list',
     saveReceipt: 'Save receipt',
+    outOfDate: 'This page is out of date (the store or list no longer exists). Reload the page.',
     receiptSaved: (n, m) => `Saved ${n} bought items` + (m >= 2 ? ` and learned the route from ${m}.` : '.'),
 
     ownRoute: 'Your own route. Learns only from your trips.',

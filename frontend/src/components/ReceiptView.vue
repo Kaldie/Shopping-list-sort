@@ -44,7 +44,13 @@ async function fromFile(e) {
 async function parse() {
   done.value = ''
   error.value = ''
-  const matches = await api.parseReceipt(raw.value, forList.value)
+  let matches
+  try {
+    matches = await api.parseReceipt(raw.value, forList.value)
+  } catch (err) {
+    error.value = err.message === 'not found' ? t('outOfDate') : err.message
+    return
+  }
   lines.value = matches.map((m) => ({ ...m, order: true, bought: true }))
   if (!lines.value.length) error.value = t('noItemsOnReceipt')
 }
@@ -54,11 +60,19 @@ async function apply() {
     error.value = t('nothingBought')
     return
   }
-  const res = await api.applyReceipt(
-    props.store.id,
-    forList.value,
-    lines.value.map(({ item, order, bought }) => ({ item, order, bought })),
-  )
+  error.value = ''
+  let res
+  try {
+    res = await api.applyReceipt(
+      props.store.id,
+      forList.value,
+      lines.value.map(({ item, order, bought }) => ({ item, order, bought })),
+    )
+  } catch (err) {
+    // 404: this page is out of date (store or list was deleted elsewhere).
+    error.value = err.message === 'not found' ? t('outOfDate') : err.message
+    return
+  }
   emit('updated', res.store)
   done.value = t('receiptSaved', bought.value.length, ordered.value.length)
   lines.value = []

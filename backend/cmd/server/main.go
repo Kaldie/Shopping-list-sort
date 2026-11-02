@@ -56,6 +56,13 @@ func main() {
 func spa(dir string) http.Handler {
 	fs := http.FileServer(http.Dir(dir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Hashed assets never change; everything else (index.html) must be
+		// revalidated, or browsers keep running an old bundle after a deploy.
+		if strings.HasPrefix(r.URL.Path, "/assets/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
 		p := filepath.Join(dir, filepath.Clean("/"+r.URL.Path))
 		if _, err := os.Stat(p); err != nil && !strings.HasPrefix(r.URL.Path, "/assets/") {
 			http.ServeFile(w, r, filepath.Join(dir, "index.html"))
