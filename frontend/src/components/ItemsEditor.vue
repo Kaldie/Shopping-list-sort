@@ -20,13 +20,17 @@ let timer
 const update = (items) => emit('change', mergeItems(items))
 
 // Adds lines and reports what happened: new items vs. counters raised.
-function addLines(lines) {
-  const parsed = lines.map(parseItem).filter(Boolean)
+// With keepExisting (paste), items already on the list are left alone, so
+// pasting the same list twice changes nothing; repeats inside one paste still
+// merge into a counter.
+function addLines(lines, keepExisting = false) {
+  let parsed = mergeItems(lines.map(parseItem))
   if (!parsed.length) return
   const have = new Set(props.items.map((i) => i.name.toLowerCase()))
   const names = [...new Set(parsed.map((p) => p.name.toLowerCase()))]
   const added = names.filter((n) => !have.has(n))
   const bumped = names.length - added.length
+  if (keepExisting) parsed = parsed.filter((p) => !have.has(p.name.toLowerCase()))
   notice.value = { added: added.length, bumped, before: props.items.map((i) => ({ ...i })) }
   fresh.value = new Set(added)
   clearTimeout(timer)
@@ -53,7 +57,7 @@ function onPaste(e) {
   const text = e.clipboardData?.getData('text') || ''
   if (toLines(text).length < 2) return
   e.preventDefault()
-  addLines(toLines(text))
+  addLines(toLines(text), true)
 }
 
 function setQty(i, qty) {
@@ -78,7 +82,15 @@ function remove(i) {
       <input class="inline grow" :value="it.name" @change="rename(i, $event.target.value)" />
       <span class="stepper">
         <button class="ghost" :aria-label="t('less', it.name)" @click="setQty(i, it.qty - 1)">−</button>
-        <span class="qty">{{ it.qty }}</span>
+        <input
+          class="qty-input"
+          type="number"
+          min="0"
+          inputmode="numeric"
+          :aria-label="t('qty')"
+          :value="it.qty"
+          @change="setQty(i, Math.floor(Number($event.target.value)) || 0)"
+        />
         <button class="ghost" :aria-label="t('more', it.name)" @click="setQty(i, it.qty + 1)">+</button>
       </span>
     </li>
