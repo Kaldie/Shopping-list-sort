@@ -13,9 +13,35 @@ const props = defineProps({
 const emit = defineEmits(['change'])
 
 const newName = ref('')
+const notice = ref(null) // { added, bumped, before } after an add, with undo
+const fresh = ref(new Set()) // names added by the last add, highlighted
+let timer
 
 const update = (items) => emit('change', mergeItems(items))
-const addLines = (lines) => update([...props.items, ...lines.map(parseItem)])
+
+// Adds lines and reports what happened: new items vs. counters raised.
+function addLines(lines) {
+  const parsed = lines.map(parseItem).filter(Boolean)
+  if (!parsed.length) return
+  const have = new Set(props.items.map((i) => i.name.toLowerCase()))
+  const names = [...new Set(parsed.map((p) => p.name.toLowerCase()))]
+  const added = names.filter((n) => !have.has(n))
+  const bumped = names.length - added.length
+  notice.value = { added: added.length, bumped, before: props.items.map((i) => ({ ...i })) }
+  fresh.value = new Set(added)
+  clearTimeout(timer)
+  timer = setTimeout(() => {
+    notice.value = null
+    fresh.value = new Set()
+  }, 8000)
+  update([...props.items, ...parsed])
+}
+
+function undo() {
+  emit('change', notice.value.before)
+  notice.value = null
+  fresh.value = new Set()
+}
 
 function add() {
   addLines(toLines(newName.value))
@@ -44,12 +70,11 @@ function rename(i, name) {
 function remove(i) {
   update(props.items.filter((_, j) => j !== i))
 }
-
 </script>
 
 <template>
   <ul class="list items">
-    <li v-for="(it, i) in items" :key="it.name">
+    <li v-for="(it, i) in items" :key="it.name" :class="{ fresh: fresh.has(it.name.toLowerCase()) }">
       <input class="inline grow" :value="it.name" @change="rename(i, $event.target.value)" />
       <span class="stepper">
         <button class="ghost" :aria-label="t('less', it.name)" @click="setQty(i, it.qty - 1)">−</button>
@@ -60,10 +85,14 @@ function remove(i) {
     <li v-if="!items.length" class="muted">{{ t('noItems') }}</li>
   </ul>
   <form class="row" @submit.prevent="add">
-    <input v-model="newName" list="item-suggestions" @paste="onPaste" :placeholder="t('addItem')" autocomplete="off" />
+    <input v-model="newName" list="item-suggestions" :placeholder="t('addItem')" autocomplete="off" @paste="onPaste" />
     <button>{{ t('add') }}</button>
   </form>
   <datalist id="item-suggestions">
     <option v-for="s in suggestions" :key="s" :value="s" />
   </datalist>
+  <p v-if="notice" class="notice" role="status">
+    <span class="grow">{{ t('added', notice.added, notice.bumped) }}</span>
+    <button class="ghost" @click="undo">{{ t('undo') }}</button>
+  </p>
 </template>

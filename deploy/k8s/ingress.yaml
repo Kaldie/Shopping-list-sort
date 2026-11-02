@@ -1,6 +1,7 @@
 # Traefik ingress: HTTPS on the websecure entrypoint. The wildcard cert for
-# *.kaldie.duckdns.org comes from Traefik's duckdns resolver, see
-# deploy/k8s-cluster/traefik-config.yaml.
+# *.kaldie.duckdns.org is requested through Traefik's duckdns resolver, named in the annotations below. The resolver
+# itself is cluster-wide and shared by every product on the machine: it lives in the homelab repo (traefik.yaml),
+# not here, because k3s allows only one HelmChartConfig named "traefik".
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

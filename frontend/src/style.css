@@ -235,3 +235,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 /* Paste box: one line until clicked or filled, then it unfolds. */
 .paste textarea { height: 44px; min-height: 0; resize: none; overflow: hidden; transition: height 0.15s ease; }
 .paste:focus-within textarea, .paste textarea:not(:placeholder-shown) { height: 9rem; resize: vertical; overflow: auto; }
+
+.notice { display: flex; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: color-mix(in srgb, var(--accent, #2a7) 15%, transparent); }
+.items li.fresh { animation: fresh 2.5s ease-out; }
+@keyframes fresh { from { background: color-mix(in srgb, var(--accent, #2a7) 30%, transparent); } to { background: transparent; } }
