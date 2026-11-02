@@ -90,7 +90,30 @@ function adoptLearned() {
   </div>
 
   <section>
-    <h2>{{ t('sections') }}</h2>
+    <h2>{{ t('layoutNow') }}</h2>
+    <p class="muted small">{{ t('layoutNowHint', store.trips) }}</p>
+    <p v-if="layout && !layout.sections.length" class="muted">{{ t('layoutEmpty') }}</p>
+    <ol v-if="layout" class="list numbered walk">
+      <li v-for="s in layout.sections" :key="s.name">
+        <span class="grow">
+          <strong>{{ s.name }}</strong>
+          <span class="badge" :class="s.source">{{ t('source' + s.source[0].toUpperCase() + s.source.slice(1)) }}</span>
+          <div v-if="s.items.length" class="muted small">{{ s.items.join(', ') }}</div>
+          <div v-else class="muted small">{{ t('noItemsSeen') }}</div>
+        </span>
+      </li>
+    </ol>
+    <details v-if="layout && layout.items.length" class="paste">
+      <summary class="muted small">{{ t('itemOrder', layout.items.length) }}</summary>
+      <ol class="list numbered">
+        <li v-for="it in layout.items" :key="it">{{ it }}</li>
+      </ol>
+    </details>
+  </section>
+
+  <details class="paste">
+    <summary>{{ t('editSections') }}</summary>
+    <p class="muted small">{{ t('editHint') }}</p>
     <ol class="list numbered">
       <li v-for="(s, i) in sections" :key="s + i">
         <span class="grow">{{ s }}</span>
@@ -105,25 +128,12 @@ function adoptLearned() {
       <input v-model="newSection" :placeholder="t('sectionPlaceholder')" />
       <button>{{ t('add') }}</button>
     </form>
+    <button v-if="layout && layout.sections.length" class="ghost" @click="adoptLearned">{{ t('adopt') }}</button>
     <label class="file">
       {{ t('importPhotos') }}
       <input type="file" accept="image/*" multiple @change="importPhotos" />
     </label>
     <p v-if="busy" class="muted">{{ busy }}</p>
     <p v-if="error" class="error">{{ error }}</p>
-  </section>
-
-  <section v-if="layout">
-    <h2>{{ t('generated') }}</h2>
-    <ol class="list numbered">
-      <li v-for="s in layout.sections" :key="s.name">
-        <span class="grow">
-          <strong>{{ s.name }}</strong>
-          <span class="badge" :class="s.source">{{ t('source' + s.source[0].toUpperCase() + s.source.slice(1)) }}</span>
-          <div v-if="s.items.length" class="muted small">{{ s.items.join(', ') }}</div>
-        </span>
-      </li>
-    </ol>
-    <button v-if="layout.sections.length" class="ghost" @click="adoptLearned">{{ t('adopt') }}</button>
-  </section>
+  </details>
 </template>
