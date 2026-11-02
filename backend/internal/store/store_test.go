@@ -50,3 +50,17 @@ func TestListsArePrivate(t *testing.T) {
 		t.Fatal("bob sees alice's lists")
 	}
 }
+
+func TestItemSectionOverridesArePersonal(t *testing.T) {
+	r, _ := Open("")
+	s, _ := r.Create("Shop", "owner", []string{"Fruit", "Dairy"})
+	r.Update(s.ID, "owner", "", nil, map[string]string{"milk": "Dairy"})
+	got, _ := r.Update(s.ID, "eve", "", nil, map[string]string{"milk": "Fruit", "apple": "Fruit"})
+	if got.ItemSection["milk"] != "Fruit" || got.ItemSection["apple"] != "Fruit" {
+		t.Fatalf("eve's view: %v", got.ItemSection)
+	}
+	own, _ := r.Get(s.ID, "owner")
+	if own.ItemSection["milk"] != "Dairy" || own.ItemSection["apple"] != "" {
+		t.Fatalf("shared map changed by non-creator: %v", own.ItemSection)
+	}
+}
