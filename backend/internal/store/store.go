@@ -101,6 +101,12 @@ func readJSON(path string, d *data) error {
 // normalize fills nil maps and migrates pre-account data after loading.
 func (r *Repository) normalize() {
 	initMaps(&r.d)
+	for _, l := range r.d.Lists {
+		l.Items = CleanItems(l.Items)
+	}
+	for _, t := range r.d.Templates {
+		t.Items = CleanItems(t.Items)
+	}
 	for _, s := range r.d.Stores {
 		initStore(s)
 		if len(s.Pairs) > 0 { // migrate pre-account data

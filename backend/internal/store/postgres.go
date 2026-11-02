@@ -85,6 +85,11 @@ func OpenPostgres(dsn, importPath string) (*Repository, error) {
 		}
 	}
 	r.normalize()
+	// normalize cleans old list items in memory; write the changed rows back.
+	if err := r.save(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("save cleaned data: %w", err)
+	}
 	return r, nil
 }
 

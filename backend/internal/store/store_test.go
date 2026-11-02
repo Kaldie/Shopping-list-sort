@@ -1,6 +1,8 @@
 package store
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -76,5 +78,18 @@ func TestCleanItems(t *testing.T) {
 	want := []Item{{"Orzo", 2}, {"Paprikas", 3}, {"100 g Feta", 1}, {"Kaas", 1}, {"Groente", 4}, {"Pindas", 1}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v want %v", got, want)
+	}
+}
+
+func TestOpenCleansOldItems(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "data.json")
+	os.WriteFile(file, []byte(`{"lists":{"l1":{"id":"l1","ownerId":"a","name":"x","items":[{"name":"* Orzo","qty":1},{"name":"- Orzo","qty":1},{"name":"- Kaas ?","qty":1}]}}}`), 0o600)
+	r, err := Open(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, _ := r.GetList("l1", "a")
+	if want := []Item{{"Orzo", 2}, {"Kaas", 1}}; !reflect.DeepEqual(l.Items, want) {
+		t.Fatalf("got %v want %v", l.Items, want)
 	}
 }
