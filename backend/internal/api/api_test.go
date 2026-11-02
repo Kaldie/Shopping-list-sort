@@ -49,7 +49,7 @@ func (c *client) do(method, path, body string, out any) int {
 
 func newAPI() http.Handler {
 	repo, _ := store.Open("")
-	return New(repo, Config{})
+	return New(repo, Config{DevLogin: true})
 }
 
 func TestRequiresLogin(t *testing.T) {
@@ -146,5 +146,22 @@ func TestReceiptFlow(t *testing.T) {
 	}
 	if res.List.CompletedAt == nil || len(res.List.Items) != 2 || res.Store.Trips != 1 {
 		t.Fatalf("apply result: %+v", res)
+	}
+}
+
+func TestDevLoginNeedsOptIn(t *testing.T) {
+	repo, _ := store.Open("")
+	h := New(repo, Config{})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("POST", "/api/auth/dev", bytes.NewBufferString(`{"name":"eve"}`)))
+	if rec.Code != 404 || len(rec.Result().Cookies()) != 0 {
+		t.Fatalf("dev login without opt-in: %d", rec.Code)
+	}
+}
+
+func TestOCRRejectsBadLang(t *testing.T) {
+	c := login(t, newAPI(), "ann")
+	if code := c.do("POST", "/api/ocr?lang=../../etc/x", "", nil); code != 400 {
+		t.Fatalf("bad lang: %d", code)
 	}
 }

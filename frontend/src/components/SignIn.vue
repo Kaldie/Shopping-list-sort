@@ -59,7 +59,7 @@ onMounted(async () => {
       <button>Sign in</button>
     </form>
     <p v-if="config?.devLogin" class="muted small">
-      Dev mode: set <code>GOOGLE_CLIENT_ID</code> on the server to enable Google Sign-In.
+      Dev mode (<code>DEV_LOGIN=true</code>): set <code>GOOGLE_CLIENT_ID</code> on the server to enable Google Sign-In.
     </p>
     <p v-if="error" class="error">{{ error }}</p>
   </div>
