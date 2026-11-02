@@ -1,0 +1,49 @@
+# Shared Postgres for all home projects, running on the server outside k3s.
+#
+#   cp .env.example .env     # set POSTGRES_PASSWORD
+#   sudo mkdir -p /srv/postgres/data /srv/postgres/backups
+#   docker compose up -d
+#
+# Listens on the LAN address only (never forward 5432 on the router).
+# One role + database per app: ./create-app-db.sh <name>
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --data-checksums"
+    ports:
+      - "${LISTEN_ADDR:-192.168.1.170}:5432:5432"
+    volumes:
+      - ${DATA_DIR:-/srv/postgres/data}:/var/lib/postgresql/data
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Nightly dump of every database, 7 daily / 4 weekly / 3 monthly kept.
+  # Point BACKUP_DIR at the second disk once it is mounted.
+  backup:
+    image: prodrigestivill/postgres-backup-local:17
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+      POSTGRES_EXTRA_OPTS: "-Z6 --create"
+      SCHEDULE: "@daily"
+      BACKUP_KEEP_DAYS: 7
+      BACKUP_KEEP_WEEKS: 4
+      BACKUP_KEEP_MONTHS: 3
+      # every database, not just POSTGRES_DB
+      POSTGRES_CLUSTER: "TRUE"
+    volumes:
+      - ${BACKUP_DIR:-/srv/postgres/backups}:/backups
