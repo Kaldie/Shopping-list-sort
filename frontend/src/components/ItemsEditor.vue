@@ -65,7 +65,7 @@ function addPasted() {
     <option v-for="s in suggestions" :key="s" :value="s" />
   </datalist>
   <div class="paste">
-    <textarea v-model="pasted" rows="6" :placeholder="t('pastePlaceholder')" />
-    <button class="primary block" :disabled="!pasted.trim()" @click="addPasted">{{ t('addItems') }}</button>
+    <textarea v-model="pasted" rows="1" :placeholder="t('pastePlaceholder')" />
+    <button v-if="pasted.trim()" class="primary block" @click="addPasted">{{ t('addItems') }}</button>
   </div>
 </template>

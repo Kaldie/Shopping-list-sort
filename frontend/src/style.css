@@ -231,3 +231,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 .dot-mini { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
 
 .lang { padding: 4px 8px; font-size: 0.8rem; margin-right: 6px; }
+
+/* Paste box: one line until clicked or filled, then it unfolds. */
+.paste textarea { height: 44px; min-height: 0; resize: none; overflow: hidden; transition: height 0.15s ease; }
+.paste:focus-within textarea, .paste textarea:not(:placeholder-shown) { height: 9rem; resize: vertical; overflow: auto; }
