@@ -1,6 +1,9 @@
 package store
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestVotingResistsOneNoisyUser(t *testing.T) {
 	r, _ := Open("")
@@ -62,5 +65,16 @@ func TestItemSectionOverridesArePersonal(t *testing.T) {
 	own, _ := r.Get(s.ID, "owner")
 	if own.ItemSection["milk"] != "Dairy" || own.ItemSection["apple"] != "" {
 		t.Fatalf("shared map changed by non-creator: %v", own.ItemSection)
+	}
+}
+
+func TestCleanItems(t *testing.T) {
+	got := CleanItems([]Item{
+		{Name: "* Orzo"}, {Name: "- Orzo"}, {Name: "- 3 Paprika's"}, {Name: "100 g Feta"},
+		{Name: "Kaas ?"}, {Name: "2x Groente", Qty: 2}, {Name: "***"}, {Name: "Pinda's"},
+	})
+	want := []Item{{"Orzo", 2}, {"Paprikas", 3}, {"100 g Feta", 1}, {"Kaas", 1}, {"Groente", 4}, {"Pindas", 1}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v want %v", got, want)
 	}
 }
