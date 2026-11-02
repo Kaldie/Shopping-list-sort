@@ -30,3 +30,14 @@ func TestParsePlainList(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestParseNameAbovePrice(t *testing.T) {
+	text := "Aardappelschijfjes\n0,99\nJumbo Wortelen Ef\n1,05\nJumbo 100% Appelmoes\n1,19\n" +
+		"Mandarijnen\n2,19\nActie Mandarijnen\n-0,20\nHalfvolle Melk Uht\n2 X 0,84\n1,68\n" +
+		"Baguette Wit 2st\n0,67\nRozijnen Kr Bol 6st\n1,49\n"
+	got := Parse(text)
+	want := []string{"Aardappelschijfjes", "Wortelen Ef", "Appelmoes", "Mandarijnen", "Halfvolle Melk Uht", "Baguette Wit", "Rozijnen Kr Bol"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
