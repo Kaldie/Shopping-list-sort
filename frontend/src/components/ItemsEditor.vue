@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
 import { toLines, parseItem, mergeItems } from '../api.js'
 import { t } from '../i18n.js'
 
@@ -14,7 +14,8 @@ const emit = defineEmits(['change'])
 
 const newName = ref('')
 const notice = ref(null) // { added, bumped, before } after an add, with undo
-const fresh = ref(new Set()) // names added by the last add, highlighted
+const fresh = ref(new Set()) // names added or raised by the last add, highlighted
+const seen = ref(new Set()) // pasted names that were already on the list
 let timer
 
 const update = (items) => emit('change', mergeItems(items))
@@ -32,11 +33,20 @@ function addLines(lines, keepExisting = false) {
   const bumped = names.length - added.length
   if (keepExisting) parsed = parsed.filter((p) => !have.has(p.name.toLowerCase()))
   notice.value = { added: added.length, bumped, before: props.items.map((i) => ({ ...i })) }
-  fresh.value = new Set(added)
+  // Clear first so a repeat within the highlight window flashes again.
+  fresh.value = new Set()
+  seen.value = new Set()
+  const flashNew = new Set(keepExisting ? added : names)
+  const flashSeen = new Set(keepExisting ? names.filter((n) => have.has(n)) : [])
+  nextTick(() => {
+    fresh.value = flashNew
+    seen.value = flashSeen
+  })
   clearTimeout(timer)
   timer = setTimeout(() => {
     notice.value = null
     fresh.value = new Set()
+    seen.value = new Set()
   }, 8000)
   update([...props.items, ...parsed])
 }
@@ -45,6 +55,7 @@ function undo() {
   emit('change', notice.value.before)
   notice.value = null
   fresh.value = new Set()
+  seen.value = new Set()
 }
 
 function add() {
@@ -78,7 +89,7 @@ function remove(i) {
 
 <template>
   <ul class="list items">
-    <li v-for="(it, i) in items" :key="it.name" :class="{ fresh: fresh.has(it.name.toLowerCase()) }">
+    <li v-for="(it, i) in items" :key="it.name" :class="{ fresh: fresh.has(it.name.toLowerCase()), seen: seen.has(it.name.toLowerCase()) }">
       <input class="inline grow" :value="it.name" @change="rename(i, $event.target.value)" />
       <span class="stepper">
         <button class="ghost" :aria-label="t('less', it.name)" @click="setQty(i, it.qty - 1)">−</button>

@@ -239,3 +239,5 @@ button:disabled { opacity: 0.5; cursor: default; }
 .notice { display: flex; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: color-mix(in srgb, var(--accent, #2a7) 15%, transparent); }
 .items li.fresh { animation: fresh 2.5s ease-out; }
 @keyframes fresh { from { background: color-mix(in srgb, var(--accent, #2a7) 30%, transparent); } to { background: transparent; } }
+.items li.seen { animation: seen 2.5s ease-out; }
+@keyframes seen { from { background: color-mix(in srgb, currentColor 14%, transparent); } to { background: transparent; } }
