@@ -2,6 +2,7 @@
 # Create a role + database for one app and store its connection URL as a k8s
 # Secret (key DATABASE_URL). The password is generated here and only travels
 # over stdin: never printed, never in a process argument list.
+# The URL asks for TLS (sslmode=require): the server only accepts encrypted connections once `./tls.sh enforce` has run.
 #
 #   ./create-app-db.sh <app-name> <k8s-namespace> [secret-name]
 #   ./create-app-db.sh shoppinglist shopping-list-sort
@@ -33,6 +34,6 @@ metadata:
   namespace: $ns
 type: Opaque
 stringData:
-  DATABASE_URL: postgres://$name:$pw@$DB_ADDR:5432/$name
+  DATABASE_URL: postgres://$name:$pw@$DB_ADDR:5432/$name?sslmode=require
 YAML
 echo "database '$name' created; secret $ns/$secret has DATABASE_URL"
