@@ -54,13 +54,13 @@ Add `https://yourname.duckdns.org` to the Google client ID's *Authorized JavaScr
 Manifests live in `deploy/k8s` (Kustomize), all in namespace `shopping-list-sort`:
 
 ```
-docker build -t ghcr.io/kaldie/shopping-list-sort:latest . && docker push ghcr.io/kaldie/shopping-list-sort:latest
+docker build -t localhost:5000/shopping-list-sort:<tag> . && docker push localhost:5000/shopping-list-sort:<tag>   # via: kubectl -n registry port-forward svc/registry 5000:5000
 # edit deploy/k8s/kustomization.yaml (image, GOOGLE_CLIENT_ID) and ingress.yaml (host, class, issuer)
 kubectl apply -k deploy/k8s
 ```
 
 - In the cluster **Traefik** (ingress) plays Caddy's role: TLS via Traefik's own ACME resolver (DuckDNS DNS-01). The resolver is shared with the other products on the machine and lives in the `homelab` repo (`traefik.yaml`); `ingress.yaml` only names it and the domain.
-- The image is built by `.github/workflows/image.yml` and pushed to `ghcr.io/kaldie/shopping-list-sort` on every push to `main`. After the first push, set the package to **Public** (GitHub → your profile → Packages → shopping-list-sort → Package settings) so the cluster can pull it without credentials.
+- The image is pushed to the in-cluster registry (`deploy/registry`, loopback-only on the node), not to a public registry; bump `newTag` in `kustomization.yaml` per build. `.github/workflows/image.yml` only runs the tests and a build check, it publishes nothing. Don't publish this image publicly.
 - One replica with `Recreate` strategy: the app keeps its state in memory.
 - Data: with `DATABASE_URL` set (Secret `shopping-list-db`, created by
   `deploy/postgres/create-app-db.sh shoppinglist shopping-list-sort shopping-list-db`)

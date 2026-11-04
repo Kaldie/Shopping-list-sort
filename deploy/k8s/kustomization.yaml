@@ -18,5 +18,5 @@ configMapGenerator:
       - SECURE_COOKIES=true
 images:
   - name: shopping-list-sort
-    newName: localhost:5000/shopping-list-sort # in-cluster registry, see deploy/registry (or ghcr.io/kaldie/shopping-list-sort)
+    newName: localhost:5000/shopping-list-sort # in-cluster registry, see deploy/registry
     newTag: hl14 # bump on every image build: nodes cache tags
