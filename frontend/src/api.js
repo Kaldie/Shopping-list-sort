@@ -56,7 +56,7 @@ export const api = {
 }
 
 export const toLines = (text) =>
-  text.split('\n').map((l) => l.trim()).filter(Boolean)
+  text.split(/\r\n|[\n\r\v\f\u0085\u2028\u2029]/).map((l) => l.trim()).filter(Boolean)
 
 // Letters (incl. accents), digits and single spaces only: no *, -, ?, bullets.
 export const cleanName = (s) =>

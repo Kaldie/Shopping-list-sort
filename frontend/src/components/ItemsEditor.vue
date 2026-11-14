@@ -59,6 +59,7 @@ function undo() {
 }
 
 function add() {
+  if (!toLines(newName.value).length) return
   addLines(toLines(newName.value))
   newName.value = ''
 }
@@ -69,6 +70,16 @@ function onPaste(e) {
   if (toLines(text).length < 2) return
   e.preventDefault()
   addLines(toLines(text), true)
+}
+
+// Fallback for inputs that bypass the paste event (drop, some mobile keyboards,
+// autofill): the browser flattens newlines in a single-line input, but some
+// keep them in the value, so split whatever arrives.
+function onInput(e) {
+  const v = e.target.value
+  if (toLines(v).length < 2) return
+  newName.value = ''
+  addLines(toLines(v), true)
 }
 
 function setQty(i, qty) {
@@ -108,7 +119,18 @@ function remove(i) {
     <li v-if="!items.length" class="muted">{{ t('noItems') }}</li>
   </ul>
   <form class="row" @submit.prevent="add">
-    <input v-model="newName" list="item-suggestions" :placeholder="t('addItem')" autocomplete="off" @paste="onPaste" />
+    <textarea
+      v-model="newName"
+      class="add-input"
+      rows="1"
+      list="item-suggestions"
+      :placeholder="t('addItem')"
+      autocomplete="off"
+      enterkeyhint="done"
+      @keydown.enter.prevent="add"
+      @paste="onPaste"
+      @input="onInput"
+    />
     <button>{{ t('add') }}</button>
   </form>
   <datalist id="item-suggestions">
