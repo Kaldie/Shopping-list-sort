@@ -263,3 +263,5 @@ button:disabled { opacity: 0.5; cursor: default; }
   .qty-input::-webkit-inner-spin-button, .qty-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   .items input.inline { padding: 4px 2px; }
 }
+.items .handle { flex: none; padding: 4px 6px 4px 0; font-size: 18px; line-height: 1; }
+@media (max-width: 520px) { .items .handle { padding-right: 2px; } }
