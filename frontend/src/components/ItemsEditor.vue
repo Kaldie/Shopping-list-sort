@@ -1,5 +1,6 @@
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import Sortable from 'sortablejs'
 import { toLines, parseItem, mergeItems } from '../api.js'
 import { t } from '../i18n.js'
 
@@ -59,6 +60,7 @@ function undo() {
 }
 
 function add() {
+  if (!toLines(newName.value).length) return
   addLines(toLines(newName.value))
   newName.value = ''
 }
@@ -70,6 +72,37 @@ function onPaste(e) {
   e.preventDefault()
   addLines(toLines(text), true)
 }
+
+// Fallback for inputs that bypass the paste event (drop, some mobile keyboards,
+// autofill): the browser flattens newlines in a single-line input, but some
+// keep them in the value, so split whatever arrives.
+function onInput(e) {
+  const v = e.target.value
+  if (toLines(v).length < 2) return
+  newName.value = ''
+  addLines(toLines(v), true)
+}
+
+// Drag to reorder by the grip (touch works too). SortableJS moves the DOM
+// node itself, so put it back and let Vue re-render from the new array.
+const listEl = ref(null)
+let sortable
+onMounted(() => {
+  sortable = Sortable.create(listEl.value, {
+    handle: '.handle',
+    draggable: 'li[data-item]',
+    animation: 150,
+    onEnd({ oldIndex, newIndex, item, from }) {
+      if (oldIndex === newIndex) return
+      from.removeChild(item)
+      from.insertBefore(item, from.children[oldIndex] || null)
+      const next = [...props.items]
+      next.splice(newIndex, 0, next.splice(oldIndex, 1)[0])
+      emit('change', next)
+    },
+  })
+})
+onBeforeUnmount(() => sortable?.destroy())
 
 function setQty(i, qty) {
   if (qty < 1) return remove(i)
@@ -88,8 +121,9 @@ function remove(i) {
 </script>
 
 <template>
-  <ul class="list items">
-    <li v-for="(it, i) in items" :key="it.name" :class="{ fresh: fresh.has(it.name.toLowerCase()), seen: seen.has(it.name.toLowerCase()) }">
+  <ul ref="listEl" class="list items">
+    <li v-for="(it, i) in items" :key="it.name" data-item :class="{ fresh: fresh.has(it.name.toLowerCase()), seen: seen.has(it.name.toLowerCase()) }">
+      <span class="handle" :title="t('reorder')" aria-hidden="true">⠿</span>
       <input class="inline grow" :value="it.name" @change="rename(i, $event.target.value)" />
       <span class="stepper">
         <button class="ghost" :aria-label="t('less', it.name)" @click="setQty(i, it.qty - 1)">−</button>
@@ -108,7 +142,18 @@ function remove(i) {
     <li v-if="!items.length" class="muted">{{ t('noItems') }}</li>
   </ul>
   <form class="row" @submit.prevent="add">
-    <input v-model="newName" list="item-suggestions" :placeholder="t('addItem')" autocomplete="off" @paste="onPaste" />
+    <textarea
+      v-model="newName"
+      class="add-input"
+      rows="1"
+      list="item-suggestions"
+      :placeholder="t('addItem')"
+      autocomplete="off"
+      enterkeyhint="done"
+      @keydown.enter.prevent="add"
+      @paste="onPaste"
+      @input="onInput"
+    />
     <button>{{ t('add') }}</button>
   </form>
   <datalist id="item-suggestions">
