@@ -265,3 +265,9 @@ button:disabled { opacity: 0.5; cursor: default; }
 }
 .items .handle { flex: none; padding: 4px 6px 4px 0; font-size: 18px; line-height: 1; }
 @media (max-width: 520px) { .items .handle { padding-right: 2px; } }
+
+/* Shop: ticked items fade out after their grace period */
+.show-ticked { width: 100%; margin: 4px 0 8px; }
+.all-done { text-align: center; padding: 16px 0; }
+.tick-leave-active { transition: opacity 0.4s, transform 0.4s; }
+.tick-leave-to { opacity: 0; transform: translateX(24px); }

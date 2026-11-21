@@ -59,6 +59,9 @@ const messages = {
     makeList: 'Maak een lijst',
     finish: 'Klaar met winkelen',
     showSections: 'Afdelingen tonen',
+    showTicked: (n) => `Afgevinkt tonen (${n})`,
+    hideTicked: 'Afgevinkt verbergen',
+    allInCart: '🎉 Alles zit in je mandje.',
     tickFirst: 'Vink eerst af wat je hebt gekocht.',
     notAllTicked: 'Niet alles is afgevinkt. Toch afronden?',
 
@@ -176,6 +179,9 @@ const messages = {
     makeList: 'Make a list',
     finish: 'Finish shopping',
     showSections: 'Show sections',
+    showTicked: (n) => `Show ticked (${n})`,
+    hideTicked: 'Hide ticked',
+    allInCart: '🎉 Everything is in your cart.',
     tickFirst: 'Tick off what you bought first.',
     notAllTicked: 'Not everything is ticked. Finish anyway?',
 
