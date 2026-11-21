@@ -1,6 +1,11 @@
 package store
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"reflect"
+	"testing"
+)
 
 func TestVotingResistsOneNoisyUser(t *testing.T) {
 	r, _ := Open("")
@@ -48,5 +53,62 @@ func TestListsArePrivate(t *testing.T) {
 	}
 	if len(r.Lists("bob")) != 0 {
 		t.Fatal("bob sees alice's lists")
+	}
+}
+
+func TestItemSectionOverridesArePersonal(t *testing.T) {
+	r, _ := Open("")
+	s, _ := r.Create("Shop", "owner", []string{"Fruit", "Dairy"})
+	r.Update(s.ID, "owner", "", nil, map[string]string{"milk": "Dairy"})
+	got, _ := r.Update(s.ID, "eve", "", nil, map[string]string{"milk": "Fruit", "apple": "Fruit"})
+	if got.ItemSection["milk"] != "Fruit" || got.ItemSection["apple"] != "Fruit" {
+		t.Fatalf("eve's view: %v", got.ItemSection)
+	}
+	own, _ := r.Get(s.ID, "owner")
+	if own.ItemSection["milk"] != "Dairy" || own.ItemSection["apple"] != "" {
+		t.Fatalf("shared map changed by non-creator: %v", own.ItemSection)
+	}
+}
+
+func TestCleanItems(t *testing.T) {
+	got := CleanItems([]Item{
+		{Name: "* Orzo"}, {Name: "- Orzo"}, {Name: "- 3 Paprika's"}, {Name: "100 g Feta"},
+		{Name: "Kaas ?"}, {Name: "2x Groente", Qty: 2}, {Name: "***"}, {Name: "Pinda's"},
+	})
+	want := []Item{{"Orzo", 2}, {"Paprikas", 3}, {"100 g Feta", 1}, {"Kaas", 1}, {"Groente", 4}, {"Pindas", 1}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+}
+
+func TestOpenCleansOldItems(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "data.json")
+	os.WriteFile(file, []byte(`{"lists":{"l1":{"id":"l1","ownerId":"a","name":"x","items":[{"name":"* Orzo","qty":1},{"name":"- Orzo","qty":1},{"name":"- Kaas ?","qty":1}]}}}`), 0o600)
+	r, err := Open(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, _ := r.GetList("l1", "a")
+	if want := []Item{{"Orzo", 2}, {"Kaas", 1}}; !reflect.DeepEqual(l.Items, want) {
+		t.Fatalf("got %v want %v", l.Items, want)
+	}
+}
+
+func TestSetItemOrderSharedAndPersonal(t *testing.T) {
+	r, _ := Open(filepath.Join(t.TempDir(), "d.json"))
+	s, _ := r.Create("AH", "alice", nil)
+	v, err := r.SetItemOrder(s.ID, "alice", []string{"Melk", "kaas", "melk"})
+	if err != nil || !reflect.DeepEqual(v.ItemOrder, []string{"melk", "kaas"}) {
+		t.Fatalf("creator: %v %v", v.ItemOrder, err)
+	}
+	if b, _ := r.Get(s.ID, "bob"); !reflect.DeepEqual(b.ItemOrder, []string{"melk", "kaas"}) {
+		t.Fatalf("bob should see shared order: %v", b.ItemOrder)
+	}
+	r.SetItemOrder(s.ID, "bob", []string{"kaas", "melk"})
+	if b, _ := r.Get(s.ID, "bob"); !reflect.DeepEqual(b.ItemOrder, []string{"kaas", "melk"}) {
+		t.Fatalf("bob personal: %v", b.ItemOrder)
+	}
+	if a, _ := r.Get(s.ID, "alice"); !reflect.DeepEqual(a.ItemOrder, []string{"melk", "kaas"}) {
+		t.Fatalf("alice must keep shared: %v", a.ItemOrder)
 	}
 }

@@ -15,7 +15,7 @@ RUN CGO_ENABLED=0 go build -o /server ./cmd/server
 
 # Runtime: OCR for receipt photos (tesseract) and digital receipts (pdftotext)
 FROM alpine:3.20
-RUN apk add --no-cache tesseract-ocr tesseract-ocr-data-nld poppler-utils ca-certificates
+RUN apk add --no-cache tesseract-ocr tesseract-ocr-data-nld tesseract-ocr-data-eng poppler-utils ca-certificates
 RUN adduser -D -u 10001 app && mkdir /data && chown app /data
 COPY --from=api /server /server
 COPY --from=web /web/dist /web

@@ -2,8 +2,11 @@ package store
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 type Item struct {
@@ -31,12 +34,44 @@ type Template struct {
 	Items   []Item `json:"items"`
 }
 
-// CleanItems trims names, defaults qty to 1 and merges duplicates.
+// CleanName keeps letters, digits and single spaces only: no *, -, ?, bullets.
+// Apostrophes are dropped without a gap ("pinda's" → "pindas").
+func CleanName(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r == '\'' || r == '’':
+		case unicode.IsLetter(r) || unicode.IsNumber(r):
+			b.WriteRune(r)
+		default:
+			b.WriteRune(' ')
+		}
+	}
+	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+// A leading number is a count ("3 paprika", "2x melk", "1 x vlees"), unless a
+// unit follows ("100 g feta").
+var (
+	leadingCount = regexp.MustCompile(`(?i)^(\d{1,2})\s*x?\s+(.+)$`)
+	leadingUnit  = regexp.MustCompile(`(?i)^(g|gr|gram|kg|kilo|ml|cl|dl|l|liter|stuks?)(\s|$)`)
+)
+
+// CleanItems cleans names, turns leading counts into quantities, defaults qty
+// to 1 and merges duplicates into one counter.
 func CleanItems(in []Item) []Item {
 	out := []Item{}
 	idx := map[string]int{}
 	for _, it := range in {
-		it.Name = strings.TrimSpace(it.Name)
+		it.Name = CleanName(it.Name)
+		if m := leadingCount.FindStringSubmatch(it.Name); m != nil && !leadingUnit.MatchString(m[2]) {
+			n, _ := strconv.Atoi(m[1])
+			it.Name = m[2]
+			if it.Qty < 1 {
+				it.Qty = 1
+			}
+			it.Qty *= max(n, 1)
+		}
 		if it.Name == "" {
 			continue
 		}

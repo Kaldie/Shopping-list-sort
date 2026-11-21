@@ -1,4 +1,5 @@
-// Package store holds the domain model and a JSON-file backed repository.
+// Package store holds the domain model and a repository persisted to a JSON
+// file or to Postgres.
 package store
 
 import (
@@ -26,10 +27,18 @@ type Store struct {
 	Sections  []string `json:"sections"` // public explicit order, may be empty
 	// ItemSection maps a normalized item name to a section name.
 	ItemSection map[string]string `json:"itemSection"`
+	// UserItemSection[user] holds a non-creator's personal item→section
+	// overrides on top of ItemSection ("" hides the shared assignment).
+	UserItemSection map[string]map[string]string `json:"userItemSection,omitempty"`
 	// UserPairs[user]["a|b"] counts that user's trips where a was picked before b.
 	UserPairs map[string]map[string]int `json:"userPairs"`
 	// Forks[user] is a user's personal section order.
 	Forks map[string][]string `json:"forks"`
+	// ItemOrder is a manual walking order of items (normalized names), set by
+	// dragging; it wins over the order learned from trips. UserItemOrder holds
+	// the personal version of anyone who is not editing the shared layout.
+	ItemOrder     []string            `json:"itemOrder,omitempty"`
+	UserItemOrder map[string][]string `json:"userItemOrder,omitempty"`
 	Trips int                 `json:"trips"`
 
 	// Pairs is the effective precedence data for the viewing user. It is
@@ -55,27 +64,54 @@ type data struct {
 	NextID    int                  `json:"nextId"`
 }
 
-// Repository is a goroutine-safe JSON file store.
-type Repository struct {
-	mu   sync.Mutex
-	path string
-	d    data
+// persister writes the whole data set after a mutation. Callers hold the
+// repository lock, so implementations need no locking of their own.
+type persister interface {
+	save(d *data) error
 }
 
+// Repository is a goroutine-safe store. All state lives in memory (one
+// replica) and is written through to a JSON file or to Postgres.
+type Repository struct {
+	mu sync.Mutex
+	p  persister
+	d  data
+}
+
+// Open returns a repository backed by the JSON file at path, or a purely
+// in-memory one when path is empty.
 func Open(path string) (*Repository, error) {
-	r := &Repository{path: path}
+	r := &Repository{}
 	if path != "" {
-		b, err := os.ReadFile(path)
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
+		r.p = fileStore{path}
+		if err := readJSON(path, &r.d); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
-		if err == nil {
-			if err := json.Unmarshal(b, &r.d); err != nil {
-				return nil, fmt.Errorf("parse %s: %w", path, err)
-			}
-		}
 	}
+	r.normalize()
+	return r, nil
+}
+
+func readJSON(path string, d *data) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(b, d); err != nil {
+		return fmt.Errorf("parse %s: %w", path, err)
+	}
+	return nil
+}
+
+// normalize fills nil maps and migrates pre-account data after loading.
+func (r *Repository) normalize() {
 	initMaps(&r.d)
+	for _, l := range r.d.Lists {
+		l.Items = CleanItems(l.Items)
+	}
+	for _, t := range r.d.Templates {
+		t.Items = CleanItems(t.Items)
+	}
 	for _, s := range r.d.Stores {
 		initStore(s)
 		if len(s.Pairs) > 0 { // migrate pre-account data
@@ -83,7 +119,6 @@ func Open(path string) (*Repository, error) {
 			s.Pairs = nil
 		}
 	}
-	return r, nil
 }
 
 func initMaps(d *data) {
@@ -108,27 +143,40 @@ func initStore(s *Store) {
 	if s.ItemSection == nil {
 		s.ItemSection = map[string]string{}
 	}
+	if s.UserItemSection == nil {
+		s.UserItemSection = map[string]map[string]string{}
+	}
 	if s.UserPairs == nil {
 		s.UserPairs = map[string]map[string]int{}
 	}
 	if s.Forks == nil {
 		s.Forks = map[string][]string{}
 	}
+	if s.UserItemOrder == nil {
+		s.UserItemOrder = map[string][]string{}
+	}
 }
 
 func (r *Repository) save() error {
-	if r.path == "" {
+	if r.p == nil {
 		return nil
 	}
-	b, err := json.MarshalIndent(r.d, "", "  ")
+	return r.p.save(&r.d)
+}
+
+// fileStore persists the data set as one JSON file, replaced atomically.
+type fileStore struct{ path string }
+
+func (f fileStore) save(d *data) error {
+	b, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return err
 	}
-	tmp := r.path + ".tmp"
+	tmp := f.path + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, r.path)
+	return os.Rename(tmp, f.path)
 }
 
 func Normalize(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
@@ -146,6 +194,17 @@ func view(s *Store, user string) Store {
 	}
 	for k, v := range s.ItemSection {
 		c.ItemSection[k] = v
+	}
+	for k, v := range s.UserItemSection[user] {
+		if v == "" {
+			delete(c.ItemSection, k)
+		} else {
+			c.ItemSection[k] = v
+		}
+	}
+	c.ItemOrder = s.ItemOrder
+	if own, ok := s.UserItemOrder[user]; ok {
+		c.ItemOrder = own
 	}
 	if fork, ok := s.Forks[user]; ok {
 		c.Forked = true
@@ -216,11 +275,24 @@ func (r *Repository) Update(id, user, name string, sections []string, itemSectio
 			s.Forks[user] = sections
 		}
 	}
-	for k, v := range itemSection {
-		if v == "" {
-			delete(s.ItemSection, Normalize(k))
-		} else {
-			s.ItemSection[Normalize(k)] = v
+	// Only the creator edits the shared item→section map; anyone else's
+	// changes are personal overrides, so they cannot vandalize the store.
+	if user == s.CreatedBy {
+		for k, v := range itemSection {
+			if v == "" {
+				delete(s.ItemSection, Normalize(k))
+			} else {
+				s.ItemSection[Normalize(k)] = v
+			}
+		}
+	} else if len(itemSection) > 0 {
+		own := s.UserItemSection[user]
+		if own == nil {
+			own = map[string]string{}
+			s.UserItemSection[user] = own
+		}
+		for k, v := range itemSection {
+			own[Normalize(k)] = v
 		}
 	}
 	return view(s, user), r.save()
@@ -249,6 +321,7 @@ func (r *Repository) Unfork(id, user string) (Store, error) {
 		return Store{}, ErrNotFound
 	}
 	delete(s.Forks, user)
+	delete(s.UserItemOrder, user)
 	return view(s, user), r.save()
 }
 
@@ -302,5 +375,32 @@ func (r *Repository) RecordTrip(id, user string, items []string) (Store, error) 
 	}
 	s.Trips++
 	r.d.Trips = append(r.d.Trips, Trip{StoreID: id, UserID: user, Items: norm, At: time.Now().UTC()})
+	return view(s, user), r.save()
+}
+
+// SetItemOrder stores a manual item order. The creator editing the shared
+// layout changes it for everyone; anyone else (or a forked route) keeps a
+// personal order.
+func (r *Repository) SetItemOrder(id, user string, order []string) (Store, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	s, ok := r.d.Stores[id]
+	if !ok {
+		return Store{}, ErrNotFound
+	}
+	clean := []string{}
+	seen := map[string]bool{}
+	for _, it := range order {
+		n := Normalize(it)
+		if n != "" && !seen[n] {
+			seen[n] = true
+			clean = append(clean, n)
+		}
+	}
+	if _, forked := s.Forks[user]; user == s.CreatedBy && !forked {
+		s.ItemOrder = clean
+	} else {
+		s.UserItemOrder[user] = clean
+	}
 	return view(s, user), r.save()
 }

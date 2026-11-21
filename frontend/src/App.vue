@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { api, setUnauthorizedHandler } from './api.js'
+import { t, locale, setLocale } from './i18n.js'
 import SignIn from './components/SignIn.vue'
 import LayoutEditor from './components/LayoutEditor.vue'
 import SortView from './components/SortView.vue'
@@ -17,11 +18,11 @@ const listId = ref(localStorage.getItem('listId') || '')
 const newName = ref('')
 const error = ref('')
 const tabs = [
-  { id: 'list', icon: '📝', label: 'List' },
-  { id: 'sort', icon: '🛒', label: 'Shop' },
-  { id: 'receipt', icon: '🧾', label: 'Receipt' },
-  { id: 'layout', icon: '🗺️', label: 'Layout' },
-  { id: 'stats', icon: '📊', label: 'Stats' },
+  { id: 'list', label: 'tabList' },
+  { id: 'sort', label: 'tabShop' },
+  { id: 'receipt', label: 'tabReceipt' },
+  { id: 'layout', label: 'tabLayout' },
+  { id: 'stats', label: 'tabStats' },
 ]
 
 const selected = computed(() => stores.value.find((s) => s.id === selectedId.value))
@@ -50,13 +51,13 @@ async function create() {
 }
 
 async function remove() {
-  if (!selected.value || !confirm(`Delete ${selected.value.name}?`)) return
+  if (!selected.value || !confirm(t('deleteStoreConfirm', selected.value.name))) return
   try {
     await api.deleteStore(selected.value.id)
     selectedId.value = ''
     await load()
   } catch {
-    alert('Only the creator can delete a supermarket, and only while nobody else uses it.')
+    alert(t('deleteStoreFail'))
   }
 }
 
@@ -89,6 +90,7 @@ function onUpdated(store) {
 }
 
 onMounted(async () => {
+  setLocale(locale.value)
   try {
     user.value = await api.me()
     await load()
@@ -104,26 +106,25 @@ onMounted(async () => {
   <template v-else-if="user">
   <header class="topbar">
     <h1>
-      <span class="logo">🛒</span> <span class="grow">Shopping List Sort</span>
-      <button class="avatar" :title="`Signed in as ${user.email || user.name} — sign out`" @click="logout">
+      <span class="grow">{{ t('appName') }}</span>
+      <button class="ghost lang" @click="setLocale(locale === 'nl' ? 'en' : 'nl')">{{ locale === 'nl' ? 'EN' : 'NL' }}</button>
+      <button class="avatar" :title="`${user.email || user.name} · ${t('signOut')}`" @click="logout">
         <img v-if="user.picture" :src="user.picture" alt="" referrerpolicy="no-referrer" />
         <span v-else>{{ user.name[0]?.toUpperCase() }}</span>
       </button>
     </h1>
     <div class="store-picker">
-      <select :value="selectedId" aria-label="Supermarket" @change="select($event.target.value)">
-        <option disabled value="">Choose a supermarket…</option>
-        <option v-for="s in stores" :key="s.id" :value="s.id">
-          {{ s.name }} · {{ s.trips }} {{ s.trips === 1 ? 'trip' : 'trips' }}
-        </option>
+      <select :value="selectedId" :aria-label="t('supermarket')" @change="select($event.target.value)">
+        <option disabled value="">{{ t('chooseStore') }}</option>
+        <option v-for="s in stores" :key="s.id" :value="s.id">{{ s.name }} · {{ t('trips', s.trips) }}</option>
       </select>
-      <button v-if="selected && selected.createdBy === user.id" class="icon" title="Delete supermarket" @click="remove">🗑</button>
+      <button v-if="selected && selected.createdBy === user.id" class="icon" :title="t('deleteStore')" @click="remove">×</button>
     </div>
     <details class="add-store" :open="!stores.length">
-      <summary>+ Add supermarket</summary>
+      <summary>{{ t('addStore') }}</summary>
       <form class="row" @submit.prevent="create">
-        <input v-model="newName" placeholder="e.g. Albert Heijn Centrum" />
-        <button>Add</button>
+        <input v-model="newName" :placeholder="t('storePlaceholder')" />
+        <button>{{ t('add') }}</button>
       </form>
     </details>
     <p v-if="error" class="error">{{ error }}</p>
@@ -131,10 +132,7 @@ onMounted(async () => {
 
   <main v-if="selected">
     <nav class="tabs">
-      <button v-for="t in tabs" :key="t.id" :class="{ active: tab === t.id }" @click="tab = t.id">
-        <span class="tab-icon">{{ t.icon }}</span>
-        <span>{{ t.label }}</span>
-      </button>
+      <button v-for="x in tabs" :key="x.id" :class="{ active: tab === x.id }" @click="tab = x.id">{{ t(x.label) }}</button>
     </nav>
     <ListView v-if="tab === 'list'" :active-list-id="listId" @select="selectList" @shop="tab = 'sort'" />
     <SortView
@@ -150,8 +148,7 @@ onMounted(async () => {
     <LayoutEditor v-else :store="selected" :user-id="user.id" @updated="onUpdated" />
   </main>
   <div v-else class="empty">
-    <div class="empty-icon">🏪</div>
-    <p>Add a supermarket to get started.</p>
+    <p>{{ t('emptyStore') }}</p>
   </div>
   </template>
 </template>

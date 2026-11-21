@@ -14,20 +14,32 @@ import (
 
 func main() {
 	addr := flag.String("addr", ":8080", "listen address")
-	dataPath := flag.String("data", "data.json", "path to JSON data file")
+	dataPath := flag.String("data", "data.json", "path to JSON data file (imported once when DATABASE_URL is set)")
 	static := flag.String("static", "", "directory with the built frontend to serve (optional)")
 	flag.Parse()
 
-	repo, err := store.Open(*dataPath)
+	// With DATABASE_URL the data lives in Postgres and -data is only read once,
+	// to import an existing JSON file into an empty database.
+	var repo *store.Repository
+	var err error
+	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
+		repo, err = store.OpenPostgres(dsn, *dataPath)
+	} else {
+		repo, err = store.Open(*dataPath)
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
 	cfg := api.Config{
 		GoogleClientID: os.Getenv("GOOGLE_CLIENT_ID"),
 		SecureCookies:  os.Getenv("SECURE_COOKIES") == "true",
+		DevLogin:       os.Getenv("DEV_LOGIN") == "true",
 	}
 	if cfg.GoogleClientID == "" {
-		log.Print("GOOGLE_CLIENT_ID not set: using unauthenticated dev login")
+		if !cfg.DevLogin {
+			log.Fatal("GOOGLE_CLIENT_ID not set: configure Google Sign-In, or set DEV_LOGIN=true for local development only")
+		}
+		log.Print("WARNING: DEV_LOGIN=true: anyone can sign in as any name without a password")
 	}
 
 	mux := http.NewServeMux()
@@ -44,6 +56,13 @@ func main() {
 func spa(dir string) http.Handler {
 	fs := http.FileServer(http.Dir(dir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Hashed assets never change; everything else (index.html) must be
+		// revalidated, or browsers keep running an old bundle after a deploy.
+		if strings.HasPrefix(r.URL.Path, "/assets/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
 		p := filepath.Join(dir, filepath.Clean("/"+r.URL.Path))
 		if _, err := os.Stat(p); err != nil && !strings.HasPrefix(r.URL.Path, "/assets/") {
 			http.ServeFile(w, r, filepath.Join(dir, "index.html"))

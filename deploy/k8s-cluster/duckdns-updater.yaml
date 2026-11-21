@@ -1,0 +1,35 @@
+# Keeps kaldie.duckdns.org pointing at the current home IP (empty ip= lets
+# DuckDNS use the address the request comes from). Uses the duckdns-token secret.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: duckdns-updater
+  namespace: kube-system
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 60
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: update
+              image: curlimages/curl:8.10.1
+              env:
+                - name: DUCKDNS_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: duckdns-token
+                      key: DUCKDNS_TOKEN
+              command:
+                - sh
+                - -c
+                - |
+                  r=$(curl -fsS "https://www.duckdns.org/update?domains=kaldie&token=${DUCKDNS_TOKEN}&ip=")
+                  echo "duckdns: $r"
+                  [ "$r" = "OK" ]

@@ -1,1 +1,4 @@
 .env
+
+# local secrets
+deploy/postgres/.env

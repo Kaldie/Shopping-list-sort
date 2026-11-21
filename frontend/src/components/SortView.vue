@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { api } from '../api.js'
+import { t } from '../i18n.js'
 
 const props = defineProps({
   store: { type: Object, required: true },
@@ -12,6 +13,11 @@ const list = ref(null)
 const groups = ref([])
 const picked = ref([]) // item names in the order they were checked off
 const error = ref('')
+
+const qty = computed(() => Object.fromEntries((list.value?.items || []).map((i) => [i.name, i.qty])))
+// Section headings are optional; the default is one plain list in walking order.
+const showSections = ref(localStorage.getItem('showSections') === '1')
+watch(showSections, (v) => localStorage.setItem('showSections', v ? '1' : '0'))
 
 // Ticked items stay visible (struck through) for a short while, so a mis-tap
 // can be undone, then drop off the list. "Show ticked" brings them back.
@@ -35,8 +41,8 @@ const visibleGroups = computed(() =>
     .filter((g) => g.items.length),
 )
 
-const qty = computed(() => Object.fromEntries((list.value?.items || []).map((i) => [i.name, i.qty])))
-const total = computed(() => groups.value.reduce((n, g) => n + g.items.length, 0))
+const flat = computed(() => groups.value.flatMap((g) => g.items))
+const total = computed(() => flat.value.length)
 
 async function load() {
   error.value = ''
@@ -73,12 +79,13 @@ function toggle(item) {
 
 // The check-off order is an observed walk through the store: record it as a
 // trip, and complete the list with what was actually bought (for statistics).
+// An item with a count is struck once, whatever the quantity.
 async function finish() {
   if (!picked.value.length) {
-    error.value = 'Tick off what you bought first.'
+    error.value = t('tickFirst')
     return
   }
-  if (picked.value.length < total.value && !confirm('Not everything is ticked. Finish anyway?')) return
+  if (picked.value.length < total.value && !confirm(t('notAllTicked'))) return
   if (picked.value.length >= 2) emit('updated', await api.trip(props.store.id, picked.value))
   await api.completeList(list.value.id, picked.value.map((name) => ({ name, qty: qty.value[name] || 1 })))
   emit('list-done')
@@ -89,37 +96,35 @@ async function finish() {
   <section v-if="!listId || !list">
     <p v-if="error" class="error">{{ error }}</p>
     <div class="empty">
-      <div class="empty-icon">📝</div>
-      <p>No list selected.</p>
-      <button @click="emit('edit-list')">Make a list</button>
+      <p>{{ t('noListSelected') }}</p>
+      <button @click="emit('edit-list')">{{ t('makeList') }}</button>
     </div>
   </section>
 
   <section v-else>
     <h2>
       <span class="grow">{{ list.name }} <small class="muted">{{ picked.length }}/{{ total }}</small></span>
-      <button class="ghost" @click="emit('edit-list')">Edit</button>
+      <button class="ghost" @click="emit('edit-list')">{{ t('edit') }}</button>
     </h2>
     <div class="progress"><div :style="{ width: total ? (100 * picked.length) / total + '%' : 0 }" /></div>
-    <p class="muted small">
-      Sorted for {{ store.name }}. Tick items off as you put them in your cart —
-      the order you tick them teaches the app this store's layout.
-    </p>
     <p v-if="error" class="error">{{ error }}</p>
+    <label class="muted small">
+      <input v-model="showSections" type="checkbox" /> {{ t('showSections') }}
+    </label>
     <button v-if="hiddenCount" class="ghost show-ticked" :aria-pressed="showTicked" @click="showTicked = !showTicked">
-      {{ showTicked ? 'Hide ticked' : `Show ticked (${hiddenCount})` }}
+      {{ showTicked ? t('hideTicked') : t('showTicked', hiddenCount) }}
     </button>
-    <p v-if="!visibleGroups.length" class="muted all-done">🎉 Everything is in your cart.</p>
+    <p v-if="total && !visibleGroups.length" class="muted all-done">{{ t('allInCart') }}</p>
     <div v-for="g in visibleGroups" :key="g.section" class="group">
-      <h3>{{ g.section }} <span class="count">{{ g.items.length }}</span></h3>
+      <h3 v-if="showSections">{{ g.section }}</h3>
       <TransitionGroup name="tick">
         <label v-for="item in g.items" :key="item" class="check" :class="{ done: picked.includes(item) }">
           <input type="checkbox" :checked="picked.includes(item)" @change="toggle(item)" />
           <span class="grow">{{ item }}</span>
-          <span v-if="qty[item] > 1" class="count">× {{ qty[item] }}</span>
+          <span v-if="qty[item] > 1" class="count">{{ qty[item] }}×</span>
         </label>
       </TransitionGroup>
     </div>
-    <button class="primary block sticky-action" @click="finish">Finish trip &amp; learn</button>
+    <button class="primary block sticky-action" @click="finish">{{ t('finish') }}</button>
   </section>
 </template>

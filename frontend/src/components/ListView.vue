@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { api } from '../api.js'
+import { t } from '../i18n.js'
 import ItemsEditor from './ItemsEditor.vue'
 
 // activeListId is the list the Shop tab sorts.
@@ -15,7 +16,6 @@ const error = ref('')
 
 const openLists = computed(() => lists.value.filter((l) => !l.completedAt))
 const active = computed(() => lists.value.find((l) => l.id === props.activeListId))
-const fromTemplate = computed(() => templates.value.find((t) => t.id === active.value?.templateId))
 
 async function load() {
   try {
@@ -40,8 +40,8 @@ async function newBlank() {
   emit('select', l.id)
 }
 
-async function newFrom(t) {
-  const l = await api.newListFromTemplate(t.id)
+async function newFrom(tpl) {
+  const l = await api.newListFromTemplate(tpl.id)
   replace(lists.value, l)
   editingTemplate.value = null
   emit('select', l.id)
@@ -56,7 +56,7 @@ async function rename(name) {
 }
 
 async function saveAsTemplate() {
-  const name = prompt('Template name', active.value.name.replace(/ · .*$/, ''))
+  const name = prompt(t('templateName'), active.value.name.replace(/ · .*$/, ''))
   if (!name) return
   replace(templates.value, await api.saveAsTemplate(active.value.id, name))
 }
@@ -69,7 +69,7 @@ async function markBought() {
 }
 
 async function removeList() {
-  if (!confirm(`Delete "${active.value.name}"?`)) return
+  if (!confirm(t('deleteListConfirm', active.value.name))) return
   await api.deleteList(active.value.id)
   lists.value = lists.value.filter((l) => l.id !== active.value.id)
   emit('select', openLists.value[0]?.id || '')
@@ -80,10 +80,10 @@ async function saveTemplateItems(items) {
   replace(templates.value, editingTemplate.value)
 }
 
-async function removeTemplate(t) {
-  if (!confirm(`Delete template "${t.name}"?`)) return
-  await api.deleteTemplate(t.id)
-  templates.value = templates.value.filter((x) => x.id !== t.id)
+async function removeTemplate(tpl) {
+  if (!confirm(t('deleteTemplateConfirm', tpl.name))) return
+  await api.deleteTemplate(tpl.id)
+  templates.value = templates.value.filter((x) => x.id !== tpl.id)
   editingTemplate.value = null
 }
 </script>
@@ -91,57 +91,51 @@ async function removeTemplate(t) {
 <template>
   <p v-if="error" class="error">{{ error }}</p>
 
-  <!-- Editing a template -->
   <section v-if="editingTemplate">
     <h2>
-      <span class="grow">📋 {{ editingTemplate.name }}</span>
-      <button class="ghost" @click="editingTemplate = null">Done</button>
+      <span class="grow">{{ editingTemplate.name }}</span>
+      <button class="ghost" @click="editingTemplate = null">{{ t('done') }}</button>
     </h2>
-    <p class="muted small">Your base list. Each week starts as a copy of this.</p>
     <ItemsEditor :items="editingTemplate.items" :suggestions="suggestions" @change="saveTemplateItems" />
     <div class="row">
-      <button class="primary" @click="newFrom(editingTemplate)">Start this week's list</button>
-      <button class="ghost" @click="removeTemplate(editingTemplate)">Delete template</button>
+      <button class="primary" @click="newFrom(editingTemplate)">{{ t('startWeek') }}</button>
+      <button class="ghost" @click="removeTemplate(editingTemplate)">{{ t('deleteTemplate') }}</button>
     </div>
   </section>
 
   <template v-else>
     <section>
       <div class="store-picker">
-        <select :value="activeListId" aria-label="Shopping list" @change="emit('select', $event.target.value)">
-          <option disabled value="">{{ openLists.length ? 'Choose a list…' : 'No open lists' }}</option>
-          <option v-for="l in openLists" :key="l.id" :value="l.id">{{ l.name }} · {{ l.items.length }} items</option>
+        <select :value="activeListId" aria-label="Lijst" @change="emit('select', $event.target.value)">
+          <option disabled value="">{{ openLists.length ? t('chooseList') : t('noOpenLists') }}</option>
+          <option v-for="l in openLists" :key="l.id" :value="l.id">{{ l.name }} · {{ t('items', l.items.length) }}</option>
         </select>
-        <button class="icon" title="New blank list" @click="newBlank">＋</button>
+        <button class="icon" :title="t('newList')" @click="newBlank">+</button>
       </div>
 
       <template v-if="active">
-        <input class="title-input" :value="active.name" aria-label="List name" @change="rename($event.target.value)" />
-        <p v-if="fromTemplate" class="muted small">From template “{{ fromTemplate.name }}” — tweak it for this week.</p>
+        <input class="title-input" :value="active.name" :aria-label="t('listName')" @change="rename($event.target.value)" />
         <ItemsEditor :items="active.items" :suggestions="suggestions" @change="saveItems" />
-        <button class="primary block" :disabled="!active.items.length" @click="emit('shop')">🛒 Sort &amp; shop</button>
+        <button class="primary block" :disabled="!active.items.length" @click="emit('shop')">{{ t('shop') }}</button>
         <div class="row">
-          <button class="ghost" @click="saveAsTemplate">📋 Save as template</button>
-          <button class="ghost" @click="markBought">✓ Mark as bought</button>
-          <button class="ghost" @click="removeList">Delete</button>
+          <button class="ghost" @click="saveAsTemplate">{{ t('saveTemplate') }}</button>
+          <button class="ghost" @click="markBought">{{ t('markBought') }}</button>
+          <button class="ghost" @click="removeList">{{ t('delete') }}</button>
         </div>
       </template>
     </section>
 
-    <section>
-      <h2>Templates</h2>
-      <p v-if="!templates.length" class="muted small">
-        Save a list as a template to reuse it every week.
-      </p>
+    <section v-if="templates.length">
+      <h2>{{ t('templates') }}</h2>
       <ul class="list">
-        <li v-for="t in templates" :key="t.id">
+        <li v-for="tpl in templates" :key="tpl.id">
           <span class="grow">
-            <strong>{{ t.name }}</strong>
-            <span class="muted small"> · {{ t.items.length }} items</span>
+            <strong>{{ tpl.name }}</strong>
+            <span class="muted small"> · {{ t('items', tpl.items.length) }}</span>
           </span>
           <span class="actions wide">
-            <button class="ghost" title="Edit template" @click="editingTemplate = t">✎</button>
-            <button @click="newFrom(t)">New list</button>
+            <button class="ghost" @click="editingTemplate = tpl">{{ t('edit') }}</button>
+            <button @click="newFrom(tpl)">{{ t('newFromTemplate') }}</button>
           </span>
         </li>
       </ul>

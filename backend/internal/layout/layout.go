@@ -13,6 +13,8 @@ import (
 type Layout struct {
 	Sections []SectionPos `json:"sections"`
 	Items    []string     `json:"items"` // learned item walking order
+	// Unplaced are learned items that no section was assigned or guessed for.
+	Unplaced []string `json:"unplaced"`
 }
 
 type SectionPos struct {
@@ -27,7 +29,7 @@ type Group struct {
 	Items   []string `json:"items"`
 }
 
-const unsorted = "Unsorted"
+const unsorted = "Overig"
 
 // RankItems orders items by a Copeland score over observed pairwise
 // precedences: each pair contributes the net fraction of trips in which one
@@ -77,14 +79,22 @@ func SectionOf(s store.Store, item string) string {
 	if sec, ok := s.ItemSection[n]; ok {
 		return sec
 	}
-	return Guess(n)
+	g := Guess(n)
+	// Prefer the store's own spelling of the section (Dutch or older English).
+	for _, sec := range s.Sections {
+		if strings.EqualFold(sec, g) || (g != "" && strings.EqualFold(sec, english[g])) {
+			return sec
+		}
+	}
+	return g
 }
 
 // Generate builds the layout: learned item order, and section positions that
 // blend the explicit order (prior) with the mean position of learned items.
 func Generate(s store.Store) Layout {
-	items := RankItems(KnownItems(s), s.Pairs)
+	items := applyOrder(RankItems(KnownItems(s), s.Pairs), s.ItemOrder)
 	itemPos := positions(items)
+	unplaced := []string{}
 
 	type acc struct {
 		sum      float64
@@ -113,6 +123,7 @@ func Generate(s store.Store) Layout {
 	for _, it := range items {
 		sec := SectionOf(s, it)
 		if sec == "" {
+			unplaced = append(unplaced, it)
 			continue
 		}
 		if _, ok := names[strings.ToLower(sec)]; !ok {
@@ -124,7 +135,7 @@ func Generate(s store.Store) Layout {
 		a.items = append(a.items, it)
 	}
 
-	l := Layout{Items: items}
+	l := Layout{Items: items, Unplaced: unplaced}
 	for key, a := range secs {
 		sp := SectionPos{Name: names[key], Items: a.items}
 		switch {
@@ -154,7 +165,7 @@ func Generate(s store.Store) Layout {
 
 // Sort orders a shopping list for the store and groups it by section.
 // Items seen on trips use their learned position; otherwise the section's
-// position; unknown items go last under "Unsorted".
+// position; unknown items go last under "Overig".
 func Sort(s store.Store, list []string) []Group {
 	l := Generate(s)
 	itemPos := positions(l.Items)
@@ -220,4 +231,30 @@ func norm(i, n int) float64 {
 		return 0.5
 	}
 	return float64(i) / float64(n-1)
+}
+
+// applyOrder puts items in the manual order first; items it does not mention
+// (new since the last drag) follow in their learned order.
+func applyOrder(items, manual []string) []string {
+	if len(manual) == 0 {
+		return items
+	}
+	have := make(map[string]bool, len(items))
+	for _, it := range items {
+		have[it] = true
+	}
+	out := make([]string, 0, len(items))
+	used := map[string]bool{}
+	for _, it := range manual {
+		if have[it] && !used[it] {
+			used[it] = true
+			out = append(out, it)
+		}
+	}
+	for _, it := range items {
+		if !used[it] {
+			out = append(out, it)
+		}
+	}
+	return out
 }

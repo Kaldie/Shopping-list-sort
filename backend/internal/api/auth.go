@@ -32,7 +32,7 @@ func (s *Server) authed(h authedHandler) http.HandlerFunc {
 func (s *Server) authConfig(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"googleClientId": s.cfg.GoogleClientID,
-		"devLogin":       s.verifier == nil,
+		"devLogin":       s.devLogin(),
 	})
 }
 
@@ -55,16 +55,20 @@ func (s *Server) loginGoogle(w http.ResponseWriter, r *http.Request) {
 	}
 	c, err := s.verifier.Verify(r.Context(), req.Credential)
 	if err != nil {
-		httpError(w, http.StatusUnauthorized, "invalid Google token: "+err.Error())
+		httpError(w, http.StatusUnauthorized, "invalid Google token")
 		return
 	}
 	s.startSession(w, store.User{ID: "google:" + c.Sub, Email: c.Email, Name: c.Name, Picture: c.Picture})
 }
 
+// devLogin reports whether name-only login is allowed: it must be enabled
+// explicitly (DEV_LOGIN=true) and Google Sign-In must not be configured.
+func (s *Server) devLogin() bool { return s.cfg.DevLogin && s.verifier == nil }
+
 // loginDev signs in by name without verification. Only available when
-// Google Sign-In is not configured, i.e. local development.
+// explicitly enabled for local development.
 func (s *Server) loginDev(w http.ResponseWriter, r *http.Request) {
-	if s.verifier != nil {
+	if !s.devLogin() {
 		httpError(w, http.StatusNotFound, "not found")
 		return
 	}
@@ -84,7 +88,7 @@ func (s *Server) loginDev(w http.ResponseWriter, r *http.Request) {
 func (s *Server) startSession(w http.ResponseWriter, u store.User) {
 	token, err := s.repo.UpsertUser(u)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+		respond(w, 0, nil, err)
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
