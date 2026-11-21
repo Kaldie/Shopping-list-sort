@@ -92,7 +92,7 @@ func SectionOf(s store.Store, item string) string {
 // Generate builds the layout: learned item order, and section positions that
 // blend the explicit order (prior) with the mean position of learned items.
 func Generate(s store.Store) Layout {
-	items := applyOrder(RankItems(KnownItems(s), s.Pairs), s.ItemOrder)
+	items := applyOrder(RankItems(withManual(KnownItems(s), s.ItemOrder), s.Pairs), s.ItemOrder)
 	itemPos := positions(items)
 	unplaced := []string{}
 
@@ -207,6 +207,28 @@ func Sort(s store.Store, list []string) []Group {
 	}
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].pos < entries[j].pos })
 
+	// A manual (dragged) order is authoritative: the items it covers keep the
+	// slots the sort gave them, but fill those slots in the dragged order, even
+	// across sections. Items never dragged stay where they are.
+	rank := make(map[string]int, len(s.ItemOrder))
+	for i, it := range s.ItemOrder {
+		if _, ok := rank[it]; !ok {
+			rank[it] = i
+		}
+	}
+	var slots []int
+	var manual []entry
+	for i, e := range entries {
+		if _, ok := rank[e.key]; ok {
+			slots = append(slots, i)
+			manual = append(manual, e)
+		}
+	}
+	sort.SliceStable(manual, func(i, j int) bool { return rank[manual[i].key] < rank[manual[j].key] })
+	for k, i := range slots {
+		entries[i] = manual[k]
+	}
+
 	groups := []Group{}
 	for _, e := range entries {
 		if n := len(groups); n > 0 && strings.EqualFold(groups[n-1].Section, e.section) {
@@ -235,6 +257,21 @@ func norm(i, n int) float64 {
 
 // applyOrder puts items in the manual order first; items it does not mention
 // (new since the last drag) follow in their learned order.
+// withManual adds manually ordered items that no trip has seen yet.
+func withManual(items, manual []string) []string {
+	have := make(map[string]bool, len(items))
+	for _, it := range items {
+		have[it] = true
+	}
+	for _, it := range manual {
+		if !have[it] {
+			have[it] = true
+			items = append(items, it)
+		}
+	}
+	return items
+}
+
 func applyOrder(items, manual []string) []string {
 	if len(manual) == 0 {
 		return items

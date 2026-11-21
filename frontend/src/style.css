@@ -271,3 +271,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 .all-done { text-align: center; padding: 16px 0; }
 .tick-leave-active { transition: opacity 0.4s, transform 0.4s; }
 .tick-leave-to { opacity: 0; transform: translateX(24px); }
+
+/* Shop: drag grip; tapping it doesn't tick the item */
+.check .grip { flex: none; padding: 4px 4px 4px 0; font-size: 18px; line-height: 1; color: var(--muted); cursor: grab; touch-action: none; }
+.sort-route { margin: 4px 0 8px; }

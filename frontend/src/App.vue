@@ -134,7 +134,7 @@ onMounted(async () => {
     <nav class="tabs">
       <button v-for="x in tabs" :key="x.id" :class="{ active: tab === x.id }" @click="tab = x.id">{{ t(x.label) }}</button>
     </nav>
-    <ListView v-if="tab === 'list'" :active-list-id="listId" @select="selectList" @shop="tab = 'sort'" />
+    <ListView v-if="tab === 'list'" :active-list-id="listId" :store-id="selected.id" @select="selectList" @shop="tab = 'sort'" />
     <SortView
       v-else-if="tab === 'sort'"
       :store="selected"

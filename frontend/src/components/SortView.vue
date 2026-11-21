@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onBeforeUnmount, nextTick } from 'vue'
+import Sortable from 'sortablejs'
 import { api } from '../api.js'
 import { t } from '../i18n.js'
 
@@ -43,6 +44,71 @@ const visibleGroups = computed(() =>
 
 const flat = computed(() => groups.value.flatMap((g) => g.items))
 const total = computed(() => flat.value.length)
+
+// Drag by the grip to change the order. The new order is saved as this
+// supermarket's item order (like dragging on the Layout page), so the next
+// list is sorted the same way.
+const routeEl = ref(null)
+let sortables = []
+function destroyDnD() {
+  sortables.forEach((x) => x.destroy())
+  sortables = []
+}
+function initDnD() {
+  destroyDnD()
+  if (!routeEl.value) return
+  for (const el of routeEl.value.querySelectorAll('.group-items')) {
+    sortables.push(
+      Sortable.create(el, {
+        group: 'route',
+        handle: '.grip',
+        draggable: '.check',
+        animation: 150,
+        // Pointer-based dragging: same behaviour for touch and mouse, and the
+        // item can be dragged across section headings.
+        forceFallback: true,
+        fallbackOnBody: true,
+        onEnd: onDrop,
+      }),
+    )
+  }
+}
+watch(visibleGroups, () => nextTick(initDnD), { flush: 'post' })
+onBeforeUnmount(destroyDnD)
+
+// Places the visible list's new order into the store's full item order: list
+// items take the slots they already had, other items stay put, and items the
+// store didn't know yet go right after the item dragged before them.
+function mergeOrder(full, visible) {
+  const vis = visible.map((n) => n.trim().toLowerCase())
+  const inFull = new Set(full)
+  const known = vis.filter((n) => inFull.has(n))
+  const set = new Set(known)
+  let k = 0
+  const out = full.map((n) => (set.has(n) ? known[k++] : n))
+  vis.forEach((n, i) => {
+    if (inFull.has(n)) return
+    const at = i ? out.indexOf(vis[i - 1]) + 1 : Math.max(0, out.indexOf(vis[i + 1]))
+    out.splice(at, 0, n)
+  })
+  return out
+}
+
+async function onDrop(evt) {
+  const names = [...routeEl.value.querySelectorAll('.check[data-item]')].map((e) => e.dataset.item)
+  // SortableJS moved the DOM node; put it back and let Vue re-render.
+  evt.item.remove()
+  evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex] || null)
+  if (evt.from === evt.to && evt.oldIndex === evt.newIndex) return
+  error.value = ''
+  try {
+    const layout = await api.layout(props.store.id)
+    emit('updated', await api.updateStore(props.store.id, { itemOrder: mergeOrder(layout.items || [], names) }))
+    groups.value = (await api.sort(props.store.id, list.value.items.map((i) => i.name))).groups
+  } catch (e) {
+    error.value = e.message
+  }
+}
 
 async function load() {
   error.value = ''
@@ -115,15 +181,18 @@ async function finish() {
       {{ showTicked ? t('hideTicked') : t('showTicked', hiddenCount) }}
     </button>
     <p v-if="total && !visibleGroups.length" class="muted all-done">{{ t('allInCart') }}</p>
+    <div ref="routeEl">
     <div v-for="g in visibleGroups" :key="g.section" class="group">
       <h3 v-if="showSections">{{ g.section }}</h3>
-      <TransitionGroup name="tick">
-        <label v-for="item in g.items" :key="item" class="check" :class="{ done: picked.includes(item) }">
+      <TransitionGroup name="tick" tag="div" class="group-items">
+        <label v-for="item in g.items" :key="item" class="check" :data-item="item" :class="{ done: picked.includes(item) }">
+          <span class="grip" :title="t('reorder')" aria-hidden="true" @click.prevent>⠿</span>
           <input type="checkbox" :checked="picked.includes(item)" @change="toggle(item)" />
           <span class="grow">{{ item }}</span>
           <span v-if="qty[item] > 1" class="count">{{ qty[item] }}×</span>
         </label>
       </TransitionGroup>
+    </div>
     </div>
     <button class="primary block sticky-action" @click="finish">{{ t('finish') }}</button>
   </section>

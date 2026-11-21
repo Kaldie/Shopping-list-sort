@@ -5,7 +5,10 @@ import { t } from '../i18n.js'
 import ItemsEditor from './ItemsEditor.vue'
 
 // activeListId is the list the Shop tab sorts.
-const props = defineProps({ activeListId: { type: String, default: '' } })
+const props = defineProps({
+  activeListId: { type: String, default: '' },
+  storeId: { type: String, default: '' }, // supermarket whose walking order "sort" uses
+})
 const emit = defineEmits(['select', 'shop'])
 
 const lists = ref([])
@@ -49,6 +52,21 @@ async function newFrom(tpl) {
 
 async function saveItems(items) {
   replace(lists.value, await api.updateList(active.value.id, { items }))
+}
+
+// One-off: put the list in the supermarket's walking order. Dragging still
+// works afterwards; nothing is re-sorted automatically.
+async function sortByRoute() {
+  error.value = ''
+  try {
+    const res = await api.sort(props.storeId, active.value.items.map((i) => i.name))
+    const byName = new Map(active.value.items.map((i) => [i.name.toLowerCase(), i]))
+    const sorted = res.groups.flatMap((g) => g.items).map((n) => byName.get(n.toLowerCase())).filter(Boolean)
+    const rest = active.value.items.filter((i) => !sorted.includes(i))
+    await saveItems([...sorted, ...rest])
+  } catch (e) {
+    error.value = e.message
+  }
 }
 
 async function rename(name) {
@@ -115,6 +133,13 @@ async function removeTemplate(tpl) {
 
       <template v-if="active">
         <input class="title-input" :value="active.name" :aria-label="t('listName')" @change="rename($event.target.value)" />
+        <button
+          v-if="storeId && active.items.length > 1"
+          class="ghost block sort-route"
+          @click="sortByRoute"
+        >
+          {{ t('sortByRoute') }}
+        </button>
         <ItemsEditor :items="active.items" :suggestions="suggestions" @change="saveItems" />
         <button class="primary block" :disabled="!active.items.length" @click="emit('shop')">{{ t('shop') }}</button>
         <div class="row">

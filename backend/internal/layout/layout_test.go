@@ -81,3 +81,22 @@ func TestManualItemOrderWins(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
+
+func TestManualOrderWinsAcrossSections(t *testing.T) {
+	r, _ := store.Open("")
+	s, _ := r.Create("AH", "u1", []string{"Produce", "Bakery", "Dairy"})
+	// Dragged on the shop page: cheese first, then bread, then bananas.
+	// Never on a trip, and against the section order.
+	s, _ = r.SetItemOrder(s.ID, "u1", []string{"kaas", "brood", "bananen"})
+	var got []string
+	for _, g := range Sort(s, []string{"bananen", "brood", "kaas", "zorblax"}) {
+		got = append(got, g.Items...)
+	}
+	want := []string{"kaas", "brood", "bananen", "zorblax"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	if l := Generate(s); len(l.Items) < 3 || l.Items[0] != "kaas" {
+		t.Fatalf("layout items should include the manual order: %v", l.Items)
+	}
+}
