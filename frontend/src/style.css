@@ -229,3 +229,9 @@ button:disabled { opacity: 0.5; cursor: default; }
 .dot:disabled { opacity: 0.3; }
 .legend { white-space: nowrap; font-weight: 600; }
 .dot-mini { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+
+/* Shop: ticked items fade out after their grace period */
+.show-ticked { width: 100%; margin: 4px 0 8px; }
+.all-done { text-align: center; padding: 16px 0; }
+.tick-leave-active { transition: opacity 0.4s, transform 0.4s; }
+.tick-leave-to { opacity: 0; transform: translateX(24px); }
